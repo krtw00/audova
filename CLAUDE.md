@@ -16,7 +16,22 @@
 
 ## 3. ビルド / 実行
 
-Phase 1 開始時に SwiftPM / Xcode project を整備し本 section を更新する (= 現状未整備)。
+SwiftPM executable target。 詳細は [README](README.md) ビルド section 参照。
+
+- `swift build` — CLI ビルド (= 初回 ~7 分、 incremental は数秒)
+- `swift run Audova` — CLI から起動
+- `open Package.swift` — Xcode で開く (= `Cmd+R` で Run)
+
+### 要件
+
+- macOS 14+ / Apple Silicon (動作確認は macOS 26.5)
+- Xcode 26 系 + Swift 6.3+ toolchain
+- 起動時に **Dock に出る** ように `AudovaApp` で `NSApplicationDelegateAdaptor` 経由 `NSApp.setActivationPolicy(.regular)` を呼んでいる (= SwiftPM executable は Info.plist 不在のため明示 activation が必要)
+
+### 依存
+
+- [SFBAudioEngine](https://github.com/sbooth/SFBAudioEngine) 0.12.1 — オーディオ engine + metadata
+- [GRDB.swift](https://github.com/groue/GRDB.swift) 7.10.0 — SQLite ラッパー
 
 ## 4. ROADMAP
 

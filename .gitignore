@@ -8,8 +8,7 @@ DerivedData/
 *.xcodeproj/xcuserdata/
 *.xcodeproj/project.xcworkspace/xcuserdata/
 *.xcworkspace/xcuserdata/
-.swiftpm/xcode/xcuserdata/
-.swiftpm/configuration/
+.swiftpm/
 
 # Sessions (local only)
 docs/sessions/

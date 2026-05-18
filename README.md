@@ -23,9 +23,29 @@ Audova は **macOS 専用の OSS ライブラリ管理プレイヤー** とし�
 
 ## ステータス
 
-**Phase 1 (= MVP) 開発準備中** — ライブラリスキャン + メタデータ + 再生 + 静的プレイリスト。 詳細は [`docs/ROADMAP.md`](docs/ROADMAP.md)。
+**Phase 1 (= MVP) 開発中** — ライブラリスキャン + メタデータ + 再生 + 静的プレイリスト。 詳細は [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 
-ビルド / 実行手順は Phase 1 で SwiftPM / Xcode project を整備次第追記する。
+## ビルド / 実行
+
+### 要件
+
+- macOS 14 (Sonoma) 以降、 Apple Silicon
+- Xcode 26 系 (= Swift 6.3+ toolchain) — App Store からインストール後 `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`
+
+### CLI
+
+```sh
+swift build              # 依存解決 + ビルド (= 初回は数分 / SFBAudioEngine の C++ 依存ビルドあり)
+swift run Audova         # 実行
+```
+
+### Xcode
+
+```sh
+open Package.swift       # SwiftPM project として Xcode で開く
+```
+
+Xcode で Run (`Cmd+R`) すると Audova ウィンドウが起動する。
 
 ## ライセンス
 
