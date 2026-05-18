@@ -2,7 +2,7 @@
 
 ## 1. Plane (Issue 管理)
 
-- identifier: `AUD` — Plane プロジェクト作成は scaffolding 完了後に実施 (= 未起票)
+- identifier: `AUD` — https://plane.codenica.dev/codenica/projects/9e973fd5-4a6e-48bd-8e50-4580176c3cb8/issues/
 - 共通運用 (Issue 起票 / commit msg / 状況確認) は global `~/.claude/CLAUDE.md` 「プロジェクト管理 (Plane)」 参照
 
 ## 2. 技術スタック
