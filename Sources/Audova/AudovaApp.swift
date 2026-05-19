@@ -17,6 +17,8 @@ struct AudovaApp: App {
         WindowGroup("Audova") {
             ContentView(libraryModel: libraryModel)
                 .environmentObject(player)
+                // scene focus 経由で PlaybackCommands に Player を渡す (= keyboard shortcut の event 伝播のため)。
+                .focusedSceneObject(player)
                 .onAppear {
                     // ライブラリ→再生エンジンの結線。 closure で疎結合化されているので、 ここで bind する。
                     libraryModel.trackActions = LibraryTrackActions(
@@ -42,7 +44,7 @@ struct AudovaApp: App {
         .windowResizability(.contentSize)
         .commands {
             LibraryCommands(model: libraryModel)
-            PlaybackCommands(player: player)
+            PlaybackCommands()
         }
     }
 

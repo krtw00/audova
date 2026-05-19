@@ -36,8 +36,7 @@ public struct TransportBarView: View {
         .padding(.vertical, 8)
         .background(.bar)
         .overlay(alignment: .top) { Divider() }
-        .onAppear { player.startProgressUpdates() }
-        .onDisappear { player.stopProgressUpdates() }
+        // 進捗 timer は Player.init で自動起動する (= view 描画依存を排除)。 ここでは購読のみ。
     }
 
     // MARK: - parts

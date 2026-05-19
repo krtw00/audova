@@ -47,6 +47,9 @@ public final class Player: NSObject, ObservableObject {
         audioPlayer.delegate = self
         // 初期 volume を engine 起動前に問い合わせると NaN になり得るので、 デフォルトは 1.0 のまま据え置く。
         // engine 起動後に `syncVolumeFromEngine()` で実値に合わせる。
+        // 進捗 timer は init で起動する (= view 描画依存を避ける。 transport bar の onAppear/onDisappear 経由だと
+        // view が一瞬でも tree から外れると stop されて時間表示が止まるため)。
+        startProgressUpdates()
     }
 
     deinit {
