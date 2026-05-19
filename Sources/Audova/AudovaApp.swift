@@ -10,13 +10,39 @@ struct AudovaApp: App {
     /// DB open はこの init で 1 回だけ行う。
     @State private var libraryModel: LibraryViewModel = AudovaApp.makeLibraryViewModel()
 
+    /// 再生エンジン。 シーン全体で共有 (= TransportBarView から `@EnvironmentObject` で参照)。
+    @StateObject private var player = Player()
+
     var body: some Scene {
         WindowGroup("Audova") {
             ContentView(libraryModel: libraryModel)
+                .environmentObject(player)
+                .onAppear {
+                    // ライブラリ→再生エンジンの結線。 closure で疎結合化されているので、 ここで bind する。
+                    libraryModel.trackActions = LibraryTrackActions(
+                        playNow: { track in
+                            player.playNow(
+                                QueueItem(
+                                    url: URL(fileURLWithPath: track.path),
+                                    title: track.title
+                                )
+                            )
+                        },
+                        enqueue: { track in
+                            player.enqueue(
+                                QueueItem(
+                                    url: URL(fileURLWithPath: track.path),
+                                    title: track.title
+                                )
+                            )
+                        }
+                    )
+                }
         }
         .windowResizability(.contentSize)
         .commands {
             LibraryCommands(model: libraryModel)
+            PlaybackCommands(player: player)
         }
     }
 
