@@ -80,6 +80,14 @@ struct AudovaApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+
+        // SwiftPM executable は Info.plist の CFBundleIconFile を起動時に自動 load しない場合があるため、
+        // Bundle.module から .icns を明示 load して NSApp.applicationIconImage に set する。
+        if let iconURL = Bundle.module.url(forResource: "Audova", withExtension: "icns"),
+           let icon = NSImage(contentsOf: iconURL) {
+            NSApp.applicationIconImage = icon
+        }
+
         NSApp.activate(ignoringOtherApps: true)
 
         // SwiftUI Commands では menu category 自体 (= File / Format / Help) を消せないため、
