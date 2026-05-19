@@ -1,68 +1,45 @@
 import SwiftUI
-import SFBAudioEngine
-import GRDB
+import AudovaCore
 
+/// アプリケーションの root view。
+///
+/// 構成 (= 上から):
+/// 1. ライブラリ領域 (= AUD-5: `LibraryView` で 3 ペイン + 検索)
+/// 2. 下部 transport bar 用 placeholder (= AUD-6 完走後にここを `TransportBarView()` で差し替える)
+///
+/// AUD-5 と AUD-6 が並列で同一 main を触るため、 root view は最小限の組み立てだけに留め、
+/// ライブラリ実体は別ファイル (`Library/LibraryView.swift`) に分けてある。
 struct ContentView: View {
-    @State private var filePath: String = ""
-    @State private var status: String = "ready"
-    @State private var dbStatus: String = "—"
-    private let player = AudioPlayer()
+    /// `AudovaApp` で生成 / 保持される `LibraryViewModel` を受け取る (= シーン全体で共有)。
+    let libraryModel: LibraryViewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Audova spike")
-                .font(.title2).bold()
+        VStack(spacing: 0) {
+            LibraryView(model: libraryModel)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            Text("audio file path (WAV/FLAC/...)")
-                .font(.caption).foregroundStyle(.secondary)
-            TextField("/Users/you/Music/sample.flac", text: $filePath)
-                .textFieldStyle(.roundedBorder)
-
-            HStack {
-                Button("Play") { play() }
-                    .keyboardShortcut(.return, modifiers: [])
-                Button("Stop") { stop() }
-                Spacer()
-                Button("DB ping") { dbPing() }
-            }
-
+            // MARK: AUD-6 統合点
+            // 下部 transport bar 用 placeholder。 AUD-6 完走後にここを TransportBarView() で差し替える。
+            // (= 同時並列実装中の AUD-6 / Player への直接依存をこの commit では持たない方針)
             Divider()
-            Text("status: \(status)").font(.caption.monospaced())
-            Text("db:     \(dbStatus)").font(.caption.monospaced())
+            TransportBarPlaceholder()
         }
-        .padding(20)
-        .frame(width: 520, height: 240)
+        .frame(minWidth: 880, minHeight: 520)
     }
+}
 
-    private func play() {
-        let expanded = (filePath as NSString).expandingTildeInPath
-        guard !expanded.isEmpty else {
-            status = "error: empty path"
-            return
+/// AUD-6 完走後に `TransportBarView()` で差し替える灰色帯。
+private struct TransportBarPlaceholder: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "play.fill").foregroundStyle(.tertiary)
+            Text("再生バー (= AUD-6 統合後にここへ)")
+                .font(.caption.monospaced())
+                .foregroundStyle(.tertiary)
+            Spacer()
         }
-        let url = URL(fileURLWithPath: expanded)
-        do {
-            try player.play(url)
-            status = "playing: \(url.lastPathComponent)"
-        } catch {
-            status = "error: \(error.localizedDescription)"
-        }
-    }
-
-    private func stop() {
-        player.stop()
-        status = "stopped"
-    }
-
-    private func dbPing() {
-        do {
-            let dbq = try DatabaseQueue()
-            try dbq.read { db in
-                _ = try Row.fetchOne(db, sql: "SELECT sqlite_version()")
-            }
-            dbStatus = "GRDB ok (in-memory)"
-        } catch {
-            dbStatus = "GRDB error: \(error.localizedDescription)"
-        }
+        .padding(.horizontal, 16)
+        .frame(height: 56)
+        .background(Color.gray.opacity(0.08))
     }
 }
