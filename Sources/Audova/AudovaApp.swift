@@ -45,6 +45,19 @@ struct AudovaApp: App {
         .commands {
             LibraryCommands(model: libraryModel)
             PlaybackCommands()
+
+            // Audova で使わない macOS default menu を空にする (= 中身が英語で UX を散らかすため)。
+            // 残すもの: App menu (= About / Quit) / 編集 (= Cut/Copy/Paste/Undo/Redo は検索 box 用に必要) /
+            // 表示 (= Full Screen) / ウィンドウ (= Minimize/Zoom/Bring All)。
+            // localization (= 残り menu の日本語化) は AUD 別 Issue で扱う。
+            CommandGroup(replacing: .newItem) {}        // ファイル > 新規ウィンドウ
+            CommandGroup(replacing: .saveItem) {}       // ファイル > 保存
+            CommandGroup(replacing: .printItem) {}      // ファイル > プリント
+            CommandGroup(replacing: .importExport) {}   // ファイル > Import / Export
+            CommandGroup(replacing: .toolbar) {}        // 表示 > ツールバー
+            CommandGroup(replacing: .sidebar) {}        // 表示 > サイドバー
+            CommandGroup(replacing: .textFormatting) {} // 編集 > 書式
+            CommandGroup(replacing: .help) {}           // ヘルプ
         }
     }
 
