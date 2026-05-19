@@ -81,9 +81,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+
+        // SwiftUI Commands では menu category 自体 (= File / Help) を消せないため、
+        // AppKit 経由で mainMenu を直接整形する。 SwiftUI が menu bar を構築した後に走らせる
+        // 必要があるので main runloop の次 tick で実行。
+        DispatchQueue.main.async {
+            Self.adjustMainMenu()
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
+    }
+
+    /// menu bar の現状を stderr に出して、 不要な menu (= File / Help) を削除する。
+    private static func adjustMainMenu() {
+        guard let mainMenu = NSApp.mainMenu else {
+            fputs("[Audova menu] NSApp.mainMenu is nil\n", stderr)
+            return
+        }
+
+        let before = mainMenu.items.map { "\($0.submenu?.title ?? $0.title)" }
+        fputs("[Audova menu] before: \(before)\n", stderr)
+
+        let removeTitles: Set<String> = ["File", "ファイル", "Help", "ヘルプ", "Format", "フォーマット", "書式"]
+        let toRemove = mainMenu.items.filter { item in
+            removeTitles.contains(item.submenu?.title ?? "") || removeTitles.contains(item.title)
+        }
+        toRemove.forEach { mainMenu.removeItem($0) }
+
+        let after = mainMenu.items.map { "\($0.submenu?.title ?? $0.title)" }
+        fputs("[Audova menu] after: \(after)\n", stderr)
     }
 }
