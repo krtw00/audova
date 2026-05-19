@@ -82,12 +82,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
 
-        // SwiftUI Commands では menu category 自体 (= File / Help) を消せないため、
-        // AppKit 経由で mainMenu を直接整形する。 SwiftUI が menu bar を構築した後に走らせる
-        // 必要があるので main runloop の次 tick で実行。
-        DispatchQueue.main.async {
-            Self.adjustMainMenu()
+        // SwiftUI Commands では menu category 自体 (= File / Format / Help) を消せないため、
+        // AppKit 経由で mainMenu を直接整形する。 SwiftUI が後から scene rebuild で復活させるので、
+        // 複数 delay で cleanup を試みる + applicationDidBecomeActive でも追従。
+        for delay in [0.0, 0.1, 0.5, 1.5] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                Self.adjustMainMenu()
+            }
         }
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        // window 切替 / app アクティブ化のたびに cleanup (= SwiftUI の menu rebuild に追従)
+        Self.adjustMainMenu()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
