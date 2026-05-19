@@ -17,6 +17,7 @@ let package = Package(
             name: "AudovaCore",
             dependencies: [
                 .product(name: "SFBAudioEngine", package: "SFBAudioEngine"),
+                .product(name: "GRDB", package: "GRDB.swift"),
             ]
         ),
         .executableTarget(
@@ -29,7 +30,10 @@ let package = Package(
         ),
         .testTarget(
             name: "AudovaCoreTests",
-            dependencies: ["AudovaCore"]
+            dependencies: [
+                "AudovaCore",
+                .product(name: "GRDB", package: "GRDB.swift"),
+            ]
         ),
     ]
 )
