@@ -1,0 +1,5 @@
+/* Audova localization marker.
+   標準メニュー (App menu / 編集 / 表示 / ウィンドウ) の訳は AppKit framework が内蔵しているため、
+   ここでは個別 override しない。 この ja.lproj が .app bundle (= Bundle.main) に含まれることで
+   OS がアプリを日本語ロケールアプリと認識し、 AppKit 標準メニューが自動で日本語化される。
+   swift run の bare executable では Bundle.main に lproj が入らないため効かない (= AUD-11 / AUD-9 参照)。 */

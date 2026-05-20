@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "Audova",
+    defaultLocalization: "ja",
     platforms: [.macOS(.v14)],
     products: [
         .executable(name: "Audova", targets: ["Audova"]),
@@ -35,6 +36,7 @@ let package = Package(
             ],
             resources: [
                 .copy("Resources/Audova.icns"),
+                .process("Resources/ja.lproj"),
             ]
         ),
         .testTarget(
