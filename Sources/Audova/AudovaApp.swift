@@ -15,6 +15,9 @@ struct AudovaApp: App {
     /// 再生エンジン。 シーン全体で共有 (= TransportBarView から `@EnvironmentObject` で参照)。
     @StateObject private var player = Player()
 
+    /// メディアキー / コントロールセンター連携 (= 起動後に 1 回だけ生成)。
+    @State private var nowPlayingController: NowPlayingController?
+
     init() {
         // library / playlist で同一 LibraryStore を共有する (= 同じ DB を 2 つの DatabasePool で開かない)。
         // DB open はこの init で 1 回だけ行う。
@@ -46,6 +49,11 @@ struct AudovaApp: App {
                     )
                     libraryModel.trackActions = actions
                     playlistModel.trackActions = actions
+
+                    // メディアキー / コントロールセンターの「再生中」 を結線 (= 1 回だけ)。
+                    if nowPlayingController == nil {
+                        nowPlayingController = NowPlayingController(player: player)
+                    }
                 }
         }
         .windowResizability(.contentSize)
