@@ -40,6 +40,8 @@
 - ライブラリ scan の差分更新 (= FSEvents による watch)
 - 「未再生」 / 「最近追加」 / 「お気に入り」 デフォルトビュー
 - ReplayGain 値の読取 (= 適用は Phase 4)
+- 出力デバイス選択 (= 外部 DAC / ヘッドホンアンプ等への出力先切替)
+- bit-perfect / 排他(hog)出力 + サンプルレート自動追従 (= 要調査。 SFBAudioEngine に API 無く CoreAudio 直叩きが必要)
 
 ## Phase 3: ライブラリ拡張
 
