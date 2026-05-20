@@ -1,4 +1,6 @@
 import SwiftUI
+import AppKit
+import UniformTypeIdentifiers
 import AudovaCore
 
 /// プレイリスト選択時の detail 領域。 曲一覧を表示し、 ダブルクリックで先頭から再生する。
@@ -11,6 +13,11 @@ struct PlaylistDetailView: View {
 
     /// 選択中の trackId セット (= `List` の selection binding 用)。
     @State private var selectedTrackIds: Set<Int64> = []
+
+    /// 現在表示中のプレイリスト名。
+    private var playlistName: String {
+        model.playlists.first(where: { $0.id == playlistId })?.name ?? "Playlist"
+    }
 
     var body: some View {
         Group {
@@ -54,6 +61,17 @@ struct PlaylistDetailView: View {
                 )
             }
         }
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    exportAsM3U8()
+                } label: {
+                    Label("M3U8 でエクスポート", systemImage: "square.and.arrow.up")
+                }
+                .help("プレイリストを M3U8 ファイルにエクスポート")
+                .disabled(model.selectedTracks.isEmpty)
+            }
+        }
         .onAppear {
             model.selectedPlaylistId = playlistId
         }
@@ -70,6 +88,23 @@ struct PlaylistDetailView: View {
               let idx = model.selectedTracks.firstIndex(where: { $0.id == firstId })
         else { return }
         model.playPlaylist(startAt: idx)
+    }
+
+    /// NSSavePanel を開き、 選択プレイリストを M3U8 ファイルに書き出す。
+    private func exportAsM3U8() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "\(playlistName).m3u8"
+        panel.allowedContentTypes = [UTType(filenameExtension: "m3u8") ?? .data]
+        panel.canCreateDirectories = true
+        panel.message = "M3U8 プレイリストの保存先を選択してください"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let baseURL = url.deletingLastPathComponent()
+        let content = M3U8Exporter.makeContent(tracks: model.selectedTracks, relativeTo: baseURL)
+        do {
+            try content.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            model.lastError = "エクスポートに失敗: \(error.localizedDescription)"
+        }
     }
 
     @ViewBuilder

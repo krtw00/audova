@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import UniformTypeIdentifiers
 import AudovaCore
 
@@ -106,6 +107,10 @@ struct AppSidebar: View {
                     renamingPlaylistId = playlist.id
                 }
                 Divider()
+                Button("M3U8 でエクスポート...") {
+                    exportAsM3U8(playlist: playlist)
+                }
+                Divider()
                 Button("削除", role: .destructive) {
                     guard let id = playlist.id else { return }
                     do {
@@ -138,5 +143,32 @@ struct AppSidebar: View {
                 }
                 return true
             }
+    }
+
+    // MARK: - export
+
+    /// NSSavePanel を開き、 指定プレイリストを M3U8 ファイルに書き出す。
+    private func exportAsM3U8(playlist: Playlist) {
+        guard let pid = playlist.id else { return }
+        let tracks: [TrackRow]
+        do {
+            tracks = try playlistModel.store.tracks(inPlaylistId: pid)
+        } catch {
+            playlistModel.lastError = "エクスポート用トラック読込に失敗: \(error.localizedDescription)"
+            return
+        }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "\(playlist.name).m3u8"
+        panel.allowedContentTypes = [UTType(filenameExtension: "m3u8") ?? .data]
+        panel.canCreateDirectories = true
+        panel.message = "M3U8 プレイリストの保存先を選択してください"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let baseURL = url.deletingLastPathComponent()
+        let content = M3U8Exporter.makeContent(tracks: tracks, relativeTo: baseURL)
+        do {
+            try content.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            playlistModel.lastError = "エクスポートに失敗: \(error.localizedDescription)"
+        }
     }
 }
