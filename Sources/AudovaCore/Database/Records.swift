@@ -136,6 +136,66 @@ public struct TrackRow: Codable, Hashable, Sendable, FetchableRecord, MutablePer
     }
 }
 
+/// 1 プレイリスト行 (= 静的プレイリスト)。
+public struct Playlist: Codable, Hashable, Sendable, FetchableRecord, MutablePersistableRecord {
+    public var id: Int64?
+    public var name: String
+    /// 作成時刻 (since 1970)。
+    public var createdAt: Double
+    /// サイドバー等での並び順。
+    public var sortOrder: Int
+
+    public static let databaseTableName = "playlists"
+
+    public init(
+        id: Int64? = nil,
+        name: String,
+        createdAt: Double,
+        sortOrder: Int
+    ) {
+        self.id = id
+        self.name = name
+        self.createdAt = createdAt
+        self.sortOrder = sortOrder
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, name
+        case createdAt = "created_at"
+        case sortOrder = "sort_order"
+    }
+
+    public mutating func didInsert(_ inserted: InsertionSuccess) {
+        id = inserted.rowID
+    }
+}
+
+/// プレイリストとトラックの中間行。 `(playlistId, trackId)` の複合主キー。
+public struct PlaylistTrack: Codable, Hashable, Sendable, FetchableRecord, MutablePersistableRecord {
+    public var playlistId: Int64
+    public var trackId: Int64
+    /// プレイリスト内での並び順。
+    public var position: Int
+
+    public static let databaseTableName = "playlist_tracks"
+
+    public init(
+        playlistId: Int64,
+        trackId: Int64,
+        position: Int
+    ) {
+        self.playlistId = playlistId
+        self.trackId = trackId
+        self.position = position
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case position
+        case playlistId = "playlist_id"
+        case trackId = "track_id"
+    }
+}
+
 /// FTS5 search hit (= tracks_fts の rowid + tracks 本体)。
 public struct TrackSearchHit: Sendable, Hashable {
     public let track: TrackRow

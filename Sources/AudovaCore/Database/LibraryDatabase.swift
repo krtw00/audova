@@ -112,6 +112,28 @@ public struct LibraryDatabase: Sendable {
             """)
         }
 
+        m.registerMigration("v2_playlists") { db in
+            try db.create(table: "playlists") { t in
+                t.autoIncrementedPrimaryKey("id")
+                t.column("name", .text).notNull()
+                t.column("created_at", .double).notNull()    // since 1970
+                t.column("sort_order", .integer).notNull()
+            }
+
+            try db.create(table: "playlist_tracks") { t in
+                t.column("playlist_id", .integer).notNull()
+                    .references("playlists", onDelete: .cascade)
+                    .indexed()
+                t.column("track_id", .integer).notNull()
+                    .references("tracks", onDelete: .cascade)
+                    .indexed()
+                t.column("position", .integer).notNull()
+                t.primaryKey(["playlist_id", "track_id"])
+            }
+
+            try db.create(index: "idx_playlist_tracks_pos", on: "playlist_tracks", columns: ["playlist_id", "position"])
+        }
+
         return m
     }
 }
