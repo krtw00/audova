@@ -6,6 +6,10 @@
     <string>ja</string>
     <key>CFBundleIdentifier</key>
     <string>dev.codenica.audova</string>
+    <key>CFBundleExecutable</key>
+    <string>Audova</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
     <key>CFBundleName</key>
     <string>Audova</string>
     <key>CFBundleDisplayName</key>
