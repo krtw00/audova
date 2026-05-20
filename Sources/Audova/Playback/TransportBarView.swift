@@ -14,9 +14,6 @@ import AudovaCore
 public struct TransportBarView: View {
     @EnvironmentObject private var player: Player
 
-    /// slider ドラッグ中の値を一時保持 (= 再生位置を引っ張られている間 polling と競合させない)。
-    @State private var seekDraft: Double?
-
     public init() {}
 
     public var body: some View {
@@ -28,7 +25,7 @@ public struct TransportBarView: View {
 
             transportButtons
 
-            progressBlock
+            ProgressScrubber(progress: player.progress) { player.seek(to: $0) }
                 .frame(maxWidth: .infinity)
 
             volumeBlock
@@ -119,33 +116,6 @@ public struct TransportBarView: View {
         }
     }
 
-    private var progressBlock: some View {
-        VStack(spacing: 2) {
-            Slider(
-                value: Binding(
-                    get: { seekDraft ?? player.currentTime },
-                    set: { seekDraft = $0 }
-                ),
-                in: 0...max(player.totalTime, 0.001),
-                onEditingChanged: { editing in
-                    if !editing, let value = seekDraft {
-                        player.seek(to: value)
-                        seekDraft = nil
-                    }
-                }
-            )
-            .disabled(player.totalTime <= 0)
-
-            HStack {
-                Text(formatTime(seekDraft ?? player.currentTime))
-                Spacer()
-                Text("-" + formatTime(max(player.totalTime - (seekDraft ?? player.currentTime), 0)))
-            }
-            .font(.caption.monospacedDigit())
-            .foregroundStyle(.secondary)
-        }
-    }
-
     private var volumeBlock: some View {
         HStack(spacing: 6) {
             Image(systemName: volumeIconName)
@@ -168,6 +138,51 @@ public struct TransportBarView: View {
         case ..<0.34: return "speaker.wave.1.fill"
         case ..<0.67: return "speaker.wave.2.fill"
         default: return "speaker.wave.3.fill"
+        }
+    }
+}
+
+/// 進捗 slider + 経過/残り時間。 0.25 秒ごとに更新される `PlaybackProgress` のみを購読する独立 view。
+/// これにより transport bar 本体やメニュー (`PlaybackCommands`) を高頻度の再描画に巻き込まない
+/// (= メニューバー点滅 / CPU 浪費の防止)。
+private struct ProgressScrubber: View {
+    @ObservedObject var progress: PlaybackProgress
+
+    /// slider ドラッグ中の値を一時保持 (= 再生位置を引っ張られている間 polling と競合させない)。
+    @State private var seekDraft: Double? = nil
+
+    /// ドラッグ終了時のシーク依頼 (= 実体は `Player.seek(to:)`)。
+    let onSeek: (TimeInterval) -> Void
+
+    init(progress: PlaybackProgress, onSeek: @escaping (TimeInterval) -> Void) {
+        self.progress = progress
+        self.onSeek = onSeek
+    }
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Slider(
+                value: Binding(
+                    get: { seekDraft ?? progress.currentTime },
+                    set: { seekDraft = $0 }
+                ),
+                in: 0...max(progress.totalTime, 0.001),
+                onEditingChanged: { editing in
+                    if !editing, let value = seekDraft {
+                        onSeek(value)
+                        seekDraft = nil
+                    }
+                }
+            )
+            .disabled(progress.totalTime <= 0)
+
+            HStack {
+                Text(formatTime(seekDraft ?? progress.currentTime))
+                Spacer()
+                Text("-" + formatTime(max(progress.totalTime - (seekDraft ?? progress.currentTime), 0)))
+            }
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(.secondary)
         }
     }
 

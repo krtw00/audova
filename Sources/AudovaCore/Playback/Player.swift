@@ -17,6 +17,20 @@ public enum RepeatMode: String, CaseIterable, Sendable {
     case off, all, one
 }
 
+/// 再生位置 (秒) / 総時間を保持する軽量 observable。
+///
+/// `Player` の進捗 timer が 0.25 秒ごとに更新するため、 これを `Player` 本体の `@Published` から
+/// 切り離すことで、 位置を必要としない購読者 (= メニュー `PlaybackCommands` 等) を高頻度の再評価から守る
+/// (= 以前はメニューが秒 4 回リビルドされ、 メニューバーが点滅 + CPU を浪費していた)。
+@MainActor
+public final class PlaybackProgress: ObservableObject {
+    /// 再生位置 (秒)。 不明な間は 0。
+    @Published public internal(set) var currentTime: TimeInterval = 0
+
+    /// 現在曲の総時間 (秒)。 不明な間は 0。
+    @Published public internal(set) var totalTime: TimeInterval = 0
+}
+
 @MainActor
 public final class Player: NSObject, ObservableObject {
     // MARK: - Published state
@@ -27,11 +41,16 @@ public final class Player: NSObject, ObservableObject {
     /// 現在曲のキュー上の表現 (= 表示用)。
     @Published public private(set) var currentItem: QueueItem?
 
-    /// 再生位置 (秒)。 不明な間は 0。
-    @Published public private(set) var currentTime: TimeInterval = 0
+    /// 再生位置 / 総時間。 0.25 秒ごとに更新されるため、 位置を必要としない購読者 (= メニュー等) を
+    /// 高頻度の再評価から守る目的で `Player` 本体の `@Published` とは別 observable に分離している
+    /// (= メニューバー点滅 / CPU 浪費の防止)。
+    public let progress = PlaybackProgress()
+
+    /// 再生位置 (秒)。 不明な間は 0。 実体は `progress` (= 既存呼び出し互換のため計算プロパティで残す)。
+    public var currentTime: TimeInterval { progress.currentTime }
 
     /// 現在曲の総時間 (秒)。 不明な間は 0。
-    @Published public private(set) var totalTime: TimeInterval = 0
+    public var totalTime: TimeInterval { progress.totalTime }
 
     /// 0.0 - 1.0 の master volume。 SFBAudioEngine 経由で `kHALOutputParam_Volume` を叩く。
     @Published public private(set) var volume: Float = 1.0
@@ -123,7 +142,7 @@ public final class Player: NSObject, ObservableObject {
 
     public func stop() {
         audioPlayer.stop()
-        currentTime = 0
+        progress.currentTime = 0
     }
 
     /// シャッフル on/off を切り替える。
@@ -156,7 +175,7 @@ public final class Player: NSObject, ObservableObject {
         } else {
             currentItem = nil
             audioPlayer.stop()
-            currentTime = 0
+            progress.currentTime = 0
         }
     }
 
@@ -164,7 +183,7 @@ public final class Player: NSObject, ObservableObject {
     public func previous() {
         if currentTime > 3.0, audioPlayer.supportsSeeking {
             _ = audioPlayer.seek(time: 0)
-            currentTime = 0
+            progress.currentTime = 0
             return
         }
         if let item = queue.retreat(wrap: repeatMode != .off) {
@@ -178,7 +197,7 @@ public final class Player: NSObject, ObservableObject {
         guard audioPlayer.supportsSeeking else { return }
         let target = max(0, min(currentTime + seconds, totalTime > 0 ? totalTime : currentTime + seconds))
         _ = audioPlayer.seek(time: target)
-        currentTime = target
+        progress.currentTime = target
     }
 
     /// 絶対シーク (秒)。
@@ -186,7 +205,7 @@ public final class Player: NSObject, ObservableObject {
         guard audioPlayer.supportsSeeking else { return }
         let clamped = max(0, totalTime > 0 ? min(seconds, totalTime) : seconds)
         _ = audioPlayer.seek(time: clamped)
-        currentTime = clamped
+        progress.currentTime = clamped
     }
 
     /// 0.0 - 1.0 の volume を設定。
@@ -211,8 +230,8 @@ public final class Player: NSObject, ObservableObject {
         queue.clear()
         currentItem = nil
         audioPlayer.stop()
-        currentTime = 0
-        totalTime = 0
+        progress.currentTime = 0
+        progress.totalTime = 0
     }
 
     // MARK: - 進捗 polling
@@ -237,8 +256,8 @@ public final class Player: NSObject, ObservableObject {
 
     private func refreshTimes() {
         if let t = audioPlayer.time {
-            currentTime = t.current ?? currentTime
-            totalTime = t.total ?? totalTime
+            progress.currentTime = t.current ?? progress.currentTime
+            progress.totalTime = t.total ?? progress.totalTime
         }
     }
 
@@ -282,7 +301,7 @@ public final class Player: NSObject, ObservableObject {
         } else {
             currentItem = nil
             audioPlayer.stop()
-            currentTime = 0
+            progress.currentTime = 0
         }
     }
 

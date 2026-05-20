@@ -76,7 +76,7 @@ final class NowPlayingController {
             .sink { [weak self] _ in self?.refreshNowPlaying() }
             .store(in: &cancellables)
         // 通常進行 (0.25 秒刻み) では更新せず、 シーク等の大きなジャンプ時だけ経過時間を同期。
-        player.$currentTime
+        player.progress.$currentTime
             .sink { [weak self] time in
                 guard let self else { return }
                 if abs(time - self.lastTime) > 1.5 { self.refreshNowPlaying() }
