@@ -104,6 +104,35 @@ public final class PlaylistViewModel {
         }
     }
 
+    /// 選択中プレイリストの曲を並べ替えて永続化する。
+    /// 呼び出し側 (= SwiftUI `.onMove`) で配列を並べ替えた後の結果を渡す。
+    public func reorderTracks(orderedTracks: [TrackRow]) {
+        guard let id = selectedPlaylistId else { return }
+        // 楽観的に UI を先行更新し、 DB に永続化する。
+        selectedTracks = orderedTracks
+        let orderedIds = orderedTracks.compactMap(\.id)
+        do {
+            try store.reorderTracks(inPlaylistId: id, orderedTrackIds: orderedIds)
+        } catch {
+            lastError = "並べ替えに失敗: \(error.localizedDescription)"
+            reloadSelectedTracks()
+        }
+    }
+
+    /// 選択中プレイリストから指定 offsets の曲を削除する。
+    /// `List.onDelete` が渡す `IndexSet` をそのまま受け取る。
+    public func removeTracks(atOffsets offsets: IndexSet) {
+        guard let id = selectedPlaylistId else { return }
+        let trackIds = offsets.compactMap { selectedTracks[$0].id }
+        guard !trackIds.isEmpty else { return }
+        do {
+            try store.removeTracks(trackIds, fromPlaylistId: id)
+            reloadSelectedTracks()
+        } catch {
+            lastError = "削除に失敗: \(error.localizedDescription)"
+        }
+    }
+
     // MARK: - 再生連携
 
     /// 選択中プレイリストを指定 index から先頭再生。

@@ -3,6 +3,8 @@ import AppKit
 import UniformTypeIdentifiers
 import AudovaCore
 
+// TrackDragPayload / UTType.audovaTrackIds は TrackDragPayload.swift で定義。
+
 /// ライブラリ画面のルート。 上に検索バー、 下に 3 ペイン (= アーティスト / アルバム / 曲)。
 ///
 /// NavigationSplitView の detail として再利用される。 サイドバーは `ContentView` 側が持つ。
@@ -191,6 +193,30 @@ private struct TrackListPane: View {
             TableColumn("タイトル") { row in
                 Text(row.title ?? row.path.split(separator: "/").last.map(String.init) ?? row.path)
                     .lineLimit(1)
+                    .onDrag {
+                        // 選択中の曲をまとめてドラッグ。 未選択行を単独ドラッグした場合は
+                        // その 1 曲だけを payload にする。
+                        let ids: [Int64]
+                        if let rowId = row.id, selectedTrackIds.contains(Optional(rowId)) {
+                            ids = model.tracks.compactMap { t in
+                                guard let tid = t.id, selectedTrackIds.contains(Optional(tid)) else { return nil }
+                                return tid
+                            }
+                        } else {
+                            ids = row.id.map { [$0] } ?? []
+                        }
+                        let provider = NSItemProvider()
+                        if let data = TrackDragPayload.encode(ids) {
+                            provider.registerDataRepresentation(
+                                forTypeIdentifier: UTType.audovaTrackIds.identifier,
+                                visibility: .ownProcess
+                            ) { completion in
+                                completion(data, nil)
+                                return nil
+                            }
+                        }
+                        return provider
+                    }
             }
             .width(min: 160, ideal: 280)
 
@@ -368,6 +394,28 @@ private struct SearchResultsView: View {
                 TableColumn("タイトル") { hit in
                     Text(hit.track.title ?? hit.track.path)
                         .lineLimit(1)
+                        .onDrag {
+                            let ids: [Int64]
+                            if hit.track.id != nil && selectedIds.contains(hit.track.path) {
+                                ids = hits.compactMap { h in
+                                    guard selectedIds.contains(h.track.path) else { return nil }
+                                    return h.track.id
+                                }
+                            } else {
+                                ids = hit.track.id.map { [$0] } ?? []
+                            }
+                            let provider = NSItemProvider()
+                            if let data = TrackDragPayload.encode(ids) {
+                                provider.registerDataRepresentation(
+                                    forTypeIdentifier: UTType.audovaTrackIds.identifier,
+                                    visibility: .ownProcess
+                                ) { completion in
+                                    completion(data, nil)
+                                    return nil
+                                }
+                            }
+                            return provider
+                        }
                 }
                 TableColumn("アーティスト") { hit in
                     Text(hit.artistName ?? "—")

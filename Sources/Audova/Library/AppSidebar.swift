@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import AudovaCore
 
 /// サイドバーの選択状態を表す enum。
@@ -117,6 +118,25 @@ struct AppSidebar: View {
                         playlistModel.lastError = "削除に失敗: \(error.localizedDescription)"
                     }
                 }
+            }
+            // ライブラリ曲行からのドロップを受け付ける。
+            .onDrop(of: [UTType.audovaTrackIds], isTargeted: nil) { providers in
+                guard let pid = playlist.id else { return false }
+                for provider in providers {
+                    provider.loadDataRepresentation(
+                        forTypeIdentifier: UTType.audovaTrackIds.identifier
+                    ) { data, _ in
+                        guard let data, let ids = TrackDragPayload.decode(data) else { return }
+                        Task { @MainActor in
+                            do {
+                                try playlistModel.addTracks(ids, toPlaylistId: pid)
+                            } catch {
+                                playlistModel.lastError = "追加に失敗: \(error.localizedDescription)"
+                            }
+                        }
+                    }
+                }
+                return true
             }
     }
 }

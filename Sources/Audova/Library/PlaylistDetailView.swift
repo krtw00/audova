@@ -2,11 +2,15 @@ import SwiftUI
 import AudovaCore
 
 /// プレイリスト選択時の detail 領域。 曲一覧を表示し、 ダブルクリックで先頭から再生する。
+///
+/// macOS の `Table` は `.onMove` 非対応のため `List+ForEach` で実装する。
+/// `.onMove` でプレイリスト内の曲順を変更し、 `.onDelete` + context menu で削除できる。
 struct PlaylistDetailView: View {
     @Bindable var model: PlaylistViewModel
     let playlistId: Int64
 
-    @State private var selectedTrackIds: Set<TrackRow.ID> = []
+    /// 選択中の trackId セット (= `List` の selection binding 用)。
+    @State private var selectedTrackIds: Set<Int64> = []
 
     var body: some View {
         Group {
@@ -17,65 +21,40 @@ struct PlaylistDetailView: View {
                     description: Text("ライブラリの曲を右クリックして「プレイリストに追加」から追加できます")
                 )
             } else {
-                Table(model.selectedTracks, selection: $selectedTrackIds) {
-                    TableColumn("#") { row in
-                        Text(trackNoLabel(row))
-                            .font(.body.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                    }
-                    .width(min: 28, ideal: 36, max: 48)
-
-                    TableColumn("タイトル") { row in
-                        Text(row.title ?? row.path.split(separator: "/").last.map(String.init) ?? row.path)
-                            .lineLimit(1)
-                    }
-                    .width(min: 160, ideal: 280)
-
-                    TableColumn("時間") { row in
-                        Text(formatDuration(row.durationMs))
-                            .font(.body.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                    }
-                    .width(min: 56, ideal: 60, max: 80)
-
-                    TableColumn("コーデック") { row in
-                        Text(row.codec.uppercased())
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.secondary)
-                    }
-                    .width(min: 60, ideal: 72, max: 96)
-                }
-                .contextMenu(forSelectionType: TrackRow.ID.self) { ids in
-                    let selected = ids.compactMap { id -> TrackRow? in
-                        guard let id = id else { return nil }
-                        return trackById(id)
-                    }
-                    if !selected.isEmpty {
-                        if selected.count == 1, let t = selected.first {
-                            Button("今すぐ再生") {
-                                let idx = model.selectedTracks.firstIndex(where: { $0.id == t.id }) ?? 0
-                                model.playPlaylist(startAt: idx)
-                            }
-                        }
-                        Divider()
-                        Button("Finder で表示") {
-                            NSWorkspace.shared.activateFileViewerSelecting(
-                                selected.map { URL(fileURLWithPath: $0.path) }
-                            )
+                List(selection: $selectedTrackIds) {
+                    ForEach(model.selectedTracks, id: \.id) { track in
+                        PlaylistTrackRow(
+                            track: track,
+                            index: model.selectedTracks.firstIndex(where: { $0.id == track.id }) ?? 0
+                        )
+                        .tag(track.id ?? 0)
+                        .contextMenu {
+                            playlistTrackContextMenu(for: track)
                         }
                     }
-                } primaryAction: { ids in
-                    // ダブルクリック / Enter で選択曲の index から再生。
-                    guard let firstId = ids.first.flatMap({ $0 }),
-                          let track = trackById(firstId),
-                          let idx = model.selectedTracks.firstIndex(where: { $0.id == track.id })
-                    else { return }
-                    model.playPlaylist(startAt: idx)
+                    .onMove { source, destination in
+                        var tracks = model.selectedTracks
+                        tracks.move(fromOffsets: source, toOffset: destination)
+                        model.reorderTracks(orderedTracks: tracks)
+                    }
+                    .onDelete { offsets in
+                        model.removeTracks(atOffsets: offsets)
+                    }
                 }
+                .listStyle(.inset)
+                // ダブルクリック: 選択中最初の曲の index から再生。
+                .onKeyPress(.return) {
+                    playSelectedFirst()
+                    return .handled
+                }
+                .simultaneousGesture(
+                    TapGesture(count: 2).onEnded {
+                        playSelectedFirst()
+                    }
+                )
             }
         }
         .onAppear {
-            // playlistId が変わるたびに detail が再描画されるので、 ここで選択プレイリストを同期。
             model.selectedPlaylistId = playlistId
         }
         .onChange(of: playlistId) { _, newId in
@@ -84,18 +63,70 @@ struct PlaylistDetailView: View {
         }
     }
 
-    private func trackById(_ id: Int64) -> TrackRow? {
-        model.selectedTracks.first { $0.id == id }
+    // MARK: - helpers
+
+    private func playSelectedFirst() {
+        guard let firstId = selectedTrackIds.first,
+              let idx = model.selectedTracks.firstIndex(where: { $0.id == firstId })
+        else { return }
+        model.playPlaylist(startAt: idx)
     }
 
-    private func trackNoLabel(_ row: TrackRow) -> String {
-        switch (row.discNo, row.trackNo) {
-        case let (disc?, track?):
-            return "\(disc).\(String(format: "%02d", track))"
-        case (nil, let track?):
-            return String(format: "%02d", track)
+    @ViewBuilder
+    private func playlistTrackContextMenu(for track: TrackRow) -> some View {
+        if let idx = model.selectedTracks.firstIndex(where: { $0.id == track.id }) {
+            Button("今すぐ再生") {
+                model.playPlaylist(startAt: idx)
+            }
+            Divider()
+        }
+        Button("プレイリストから削除", role: .destructive) {
+            guard let trackId = track.id,
+                  let idx = model.selectedTracks.firstIndex(where: { $0.id == trackId })
+            else { return }
+            model.removeTracks(atOffsets: IndexSet([idx]))
+        }
+        Divider()
+        Button("Finder で表示") {
+            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: track.path)])
+        }
+    }
+}
+
+// MARK: - 曲行
+
+/// プレイリスト内の 1 曲行。 `#`・タイトル・時間 の簡易レイアウト。
+private struct PlaylistTrackRow: View {
+    let track: TrackRow
+    let index: Int
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(trackNoLabel)
+                .font(.body.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: 36, alignment: .trailing)
+
+            Text(track.title ?? track.path.split(separator: "/").last.map(String.init) ?? track.path)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text(formatDuration(track.durationMs))
+                .font(.body.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: 52, alignment: .trailing)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var trackNoLabel: String {
+        switch (track.discNo, track.trackNo) {
+        case let (disc?, trackNo?):
+            return "\(disc).\(String(format: "%02d", trackNo))"
+        case (nil, let trackNo?):
+            return String(format: "%02d", trackNo)
         default:
-            return "—"
+            return String(index + 1)
         }
     }
 
