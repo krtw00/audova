@@ -7,14 +7,21 @@ struct AudovaApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     /// ライブラリ画面のステート。 シーン全体で共有し、 メニュー (`LibraryCommands`) からも触れるようにする。
-    /// DB open はこの init で 1 回だけ行う。
-    @State private var libraryModel: LibraryViewModel = AudovaApp.makeLibraryViewModel()
+    @State private var libraryModel: LibraryViewModel
 
     /// プレイリスト画面のステート。 `libraryModel` と同じ `LibraryStore` を共有する。
-    @State private var playlistModel: PlaylistViewModel = AudovaApp.makePlaylistViewModel()
+    @State private var playlistModel: PlaylistViewModel
 
     /// 再生エンジン。 シーン全体で共有 (= TransportBarView から `@EnvironmentObject` で参照)。
     @StateObject private var player = Player()
+
+    init() {
+        // library / playlist で同一 LibraryStore を共有する (= 同じ DB を 2 つの DatabasePool で開かない)。
+        // DB open はこの init で 1 回だけ行う。
+        let store = AudovaApp.makeSharedStore()
+        _libraryModel = State(initialValue: LibraryViewModel(store: store))
+        _playlistModel = State(initialValue: PlaylistViewModel(store: store))
+    }
 
     var body: some Scene {
         WindowGroup("Audova") {
@@ -75,33 +82,18 @@ struct AudovaApp: App {
         }
     }
 
-    /// 起動時に 1 回呼ばれる factory。 DB open に失敗したら in-memory に fallback して最低限の画面は出す。
-    private static func makeLibraryViewModel() -> LibraryViewModel {
-        let store: LibraryStore
+    /// 起動時に 1 回だけ DB を開いて共有 `LibraryStore` を作る。
+    /// open 失敗時は in-memory に fallback して最低限の画面は出す。
+    private static func makeSharedStore() -> LibraryStore {
         do {
             let db = try LibraryDatabase.open(.applicationSupport)
-            store = LibraryStore(database: db)
+            return LibraryStore(database: db)
         } catch {
             fputs("Audova: failed to open library DB on disk: \(error.localizedDescription). Falling back to in-memory.\n", stderr)
             // in-memory も失敗するなら起動できないので fatalError。 通常ありえない (= UUID で一意 tmp ファイル)。
             let db = try! LibraryDatabase.open(.inMemory)
-            store = LibraryStore(database: db)
+            return LibraryStore(database: db)
         }
-        return LibraryViewModel(store: store)
-    }
-
-    /// プレイリスト ViewModel factory。 `libraryModel` と同じ DB を共有するため、 同じ path を開く。
-    /// DB open は `LibraryStore` 内の `DatabasePool` で接続プールされているので 2 度目の open は安全。
-    private static func makePlaylistViewModel() -> PlaylistViewModel {
-        let store: LibraryStore
-        do {
-            let db = try LibraryDatabase.open(.applicationSupport)
-            store = LibraryStore(database: db)
-        } catch {
-            let db = try! LibraryDatabase.open(.inMemory)
-            store = LibraryStore(database: db)
-        }
-        return PlaylistViewModel(store: store)
     }
 }
 
