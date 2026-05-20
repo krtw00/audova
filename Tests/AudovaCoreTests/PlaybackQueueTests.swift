@@ -86,6 +86,52 @@ final class PlaybackQueueTests: XCTestCase {
         XCTAssertNil(q.currentIndex)
     }
 
+    // MARK: - シャッフル / リピート (AUD-14)
+
+    func testSetShuffledKeepsCurrentAndItems() {
+        var q = PlaybackQueue()
+        q.replaceAll([item("a"), item("b"), item("c"), item("d")])
+        q.setShuffled(true)
+        XCTAssertTrue(q.isShuffled)
+        XCTAssertEqual(q.current?.title, "a")             // 現在曲は先頭に残る
+        XCTAssertEqual(q.items.map(\.title), ["a", "b", "c", "d"]) // items 自体は不変
+    }
+
+    func testShuffleVisitsEveryItemOnce() {
+        var q = PlaybackQueue()
+        q.replaceAll([item("a"), item("b"), item("c"), item("d")])
+        q.setShuffled(true)
+        var visited: [String] = [q.current!.title!]
+        while let next = q.advance() { visited.append(next.title!) }
+        XCTAssertEqual(visited.count, 4)                  // 全曲を 1 回ずつ
+        XCTAssertEqual(Set(visited), ["a", "b", "c", "d"])
+        XCTAssertEqual(visited.first, "a")                // 現在曲が先頭
+    }
+
+    func testUnshuffleRestoresOrderAndPosition() {
+        var q = PlaybackQueue()
+        q.replaceAll([item("a"), item("b"), item("c")], startAt: 1) // current b
+        q.setShuffled(true)
+        XCTAssertEqual(q.current?.title, "b")
+        q.setShuffled(false)
+        XCTAssertFalse(q.isShuffled)
+        XCTAssertEqual(q.current?.title, "b")
+        XCTAssertEqual(q.currentIndex, 1)                 // 元順序の位置に戻る
+    }
+
+    func testAdvanceWrapsToFirstWhenWrapTrue() {
+        var q = PlaybackQueue()
+        q.replaceAll([item("a"), item("b")])
+        XCTAssertEqual(q.advance()?.title, "b")
+        XCTAssertEqual(q.advance(wrap: true)?.title, "a") // 末端 → 先頭
+    }
+
+    func testRetreatWrapsToLastWhenWrapTrue() {
+        var q = PlaybackQueue()
+        q.replaceAll([item("a"), item("b"), item("c")])   // current a
+        XCTAssertEqual(q.retreat(wrap: true)?.title, "c") // 先頭 → 末尾
+    }
+
     func testDisplayTitleFallsBackToFileName() {
         let withTitle = QueueItem(url: URL(fileURLWithPath: "/tmp/x.flac"), title: "Song")
         XCTAssertEqual(withTitle.displayTitle, "Song")

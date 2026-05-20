@@ -12,6 +12,11 @@ import SFBAudioEngine
 ///
 /// スレッドモデル: `@MainActor`。 SwiftUI 側からの操作は main で受け、 SFB delegate コールバックは
 /// 任意 queue から来るので `MainActor.assumeIsolated` で main へ戻して state を触る。
+/// リピートモード。 off (リピートなし) / all (キュー全体を繰り返す) / one (現在曲を繰り返す)。
+public enum RepeatMode: String, CaseIterable, Sendable {
+    case off, all, one
+}
+
 @MainActor
 public final class Player: NSObject, ObservableObject {
     // MARK: - Published state
@@ -33,6 +38,9 @@ public final class Player: NSObject, ObservableObject {
 
     /// キュー本体。 SwiftUI 側で「Up Next」 を表示する時に参照する。
     @Published public private(set) var queue = PlaybackQueue()
+
+    /// リピートモード (= off / all / one)。
+    @Published public private(set) var repeatMode: RepeatMode = .off
 
     /// 最後に発生したエラーメッセージ (= toast / ステータスバー表示用)。
     @Published public private(set) var lastError: String?
@@ -118,9 +126,31 @@ public final class Player: NSObject, ObservableObject {
         currentTime = 0
     }
 
-    /// 次のトラックへ。 キュー末端なら停止。
+    /// シャッフル on/off を切り替える。
+    public func toggleShuffle() {
+        queue.setShuffled(!queue.isShuffled)
+    }
+
+    /// リピートモードを off → all → one → off で循環させる。
+    public func cycleRepeatMode() {
+        switch repeatMode {
+        case .off: repeatMode = .all
+        case .all: repeatMode = .one
+        case .one: repeatMode = .off
+        }
+    }
+
+    /// シャッフル中か (= UI バインド用)。
+    public var isShuffled: Bool { queue.isShuffled }
+
+    /// 「次へ」 が可能か。 リピート時はキューに曲があれば末端でも可。
+    public var canGoNext: Bool {
+        queue.hasNext || (repeatMode != .off && !queue.items.isEmpty)
+    }
+
+    /// 次のトラックへ。 リピート off ではキュー末端で停止、 それ以外は先頭へ回り込む。
     public func next() {
-        if let item = queue.advance() {
+        if let item = queue.advance(wrap: repeatMode != .off) {
             currentItem = item
             startCurrent(immediate: true)
         } else {
@@ -137,7 +167,7 @@ public final class Player: NSObject, ObservableObject {
             currentTime = 0
             return
         }
-        if let item = queue.retreat() {
+        if let item = queue.retreat(wrap: repeatMode != .off) {
             currentItem = item
             startCurrent(immediate: true)
         }
@@ -239,6 +269,23 @@ public final class Player: NSObject, ObservableObject {
         }
     }
 
+    /// 自然終了 (= 曲が最後まで再生された) 時の遷移。 repeat one は同曲を再生し直し、
+    /// それ以外は次へ進む (repeat all なら末端で先頭へ回り込む)。
+    private func handleTrackEnded() {
+        if repeatMode == .one {
+            startCurrent(immediate: true)
+            return
+        }
+        if let item = queue.advance(wrap: repeatMode == .all) {
+            currentItem = item
+            startCurrent(immediate: true)
+        } else {
+            currentItem = nil
+            audioPlayer.stop()
+            currentTime = 0
+        }
+    }
+
     private func recordError(_ message: String) {
         lastError = message
     }
@@ -259,9 +306,9 @@ extension Player: AudioPlayer.Delegate {
     }
 
     public nonisolated func audioPlayerEndOfAudio(_ audioPlayer: AudioPlayer) {
-        // 全 decoder 再生完了。 キュー上で次に進める。
+        // 全 decoder 再生完了。 リピートモードに応じて次の挙動を決める。
         Task { @MainActor in
-            self.next()
+            self.handleTrackEnded()
         }
     }
 

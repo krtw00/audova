@@ -74,6 +74,13 @@ public struct TransportBarView: View {
 
     private var transportButtons: some View {
         HStack(spacing: 4) {
+            Button { player.toggleShuffle() } label: {
+                Image(systemName: "shuffle")
+            }
+            .help(player.isShuffled ? "シャッフル: オン" : "シャッフル: オフ")
+            .foregroundStyle(player.isShuffled ? Color.accentColor : Color.secondary)
+            .disabled(player.queue.items.isEmpty)
+
             Button { player.previous() } label: {
                 Image(systemName: "backward.fill")
             }
@@ -91,10 +98,25 @@ public struct TransportBarView: View {
                 Image(systemName: "forward.fill")
             }
             .help("次の曲 (Cmd+→)")
-            .disabled(!player.queue.hasNext)
+            .disabled(!player.canGoNext)
+
+            Button { player.cycleRepeatMode() } label: {
+                Image(systemName: player.repeatMode == .one ? "repeat.1" : "repeat")
+            }
+            .help(repeatHelp)
+            .foregroundStyle(player.repeatMode == .off ? Color.secondary : Color.accentColor)
+            .disabled(player.queue.items.isEmpty)
         }
         .buttonStyle(.borderless)
         .font(.title3)
+    }
+
+    private var repeatHelp: String {
+        switch player.repeatMode {
+        case .off: return "リピート: オフ"
+        case .all: return "リピート: 全曲"
+        case .one: return "リピート: 1曲"
+        }
     }
 
     private var progressBlock: some View {

@@ -27,11 +27,19 @@ struct PlaybackCommands: Commands {
 
             Button("次の曲") { player?.next() }
                 .keyboardShortcut(.rightArrow, modifiers: [.command])
-                .disabled(player?.queue.hasNext != true)
+                .disabled(player?.canGoNext != true)
 
             Button("前の曲") { player?.previous() }
                 .keyboardShortcut(.leftArrow, modifiers: [.command])
                 .disabled(player?.currentItem == nil)
+
+            Divider()
+
+            Button(shuffleLabel) { player?.toggleShuffle() }
+                .disabled(player == nil)
+
+            Button(repeatLabel) { player?.cycleRepeatMode() }
+                .disabled(player == nil)
 
             Divider()
 
@@ -62,5 +70,19 @@ struct PlaybackCommands: Commands {
     private var hasAnything: Bool {
         guard let player else { return false }
         return player.currentItem != nil || !player.queue.items.isEmpty
+    }
+
+    /// シャッフル menu 文言 (= 現在状態を表示、 クリックでトグル)。
+    private var shuffleLabel: String {
+        (player?.isShuffled ?? false) ? "シャッフル: オン" : "シャッフル: オフ"
+    }
+
+    /// リピート menu 文言 (= 現在状態を表示、 クリックで循環)。
+    private var repeatLabel: String {
+        switch player?.repeatMode ?? .off {
+        case .off: return "リピート: オフ"
+        case .all: return "リピート: 全曲"
+        case .one: return "リピート: 1曲"
+        }
     }
 }
