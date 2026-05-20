@@ -8,6 +8,8 @@ public struct QueueItem: Sendable, Hashable, Identifiable {
     public let artist: String?
     public let albumTitle: String?
     public let duration: TimeInterval?
+    /// アルバムアートの保存先絶対パス (= `ArtworkStore` が書いたファイル)。 無ければ nil。
+    public let artworkPath: String?
 
     public init(
         id: UUID = UUID(),
@@ -15,7 +17,8 @@ public struct QueueItem: Sendable, Hashable, Identifiable {
         title: String? = nil,
         artist: String? = nil,
         albumTitle: String? = nil,
-        duration: TimeInterval? = nil
+        duration: TimeInterval? = nil,
+        artworkPath: String? = nil
     ) {
         self.id = id
         self.url = url
@@ -23,6 +26,7 @@ public struct QueueItem: Sendable, Hashable, Identifiable {
         self.artist = artist
         self.albumTitle = albumTitle
         self.duration = duration
+        self.artworkPath = artworkPath
     }
 
     /// 表示タイトルが無ければファイル名 (= 拡張子除く) を fallback として使う。
