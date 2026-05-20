@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import AVFoundation
+import CoreAudio
 import SFBAudioEngine
 
 /// Audova の再生エンジン外装。
@@ -55,6 +56,12 @@ public final class Player: NSObject, ObservableObject {
     /// 0.0 - 1.0 の master volume。 SFBAudioEngine 経由で `kHALOutputParam_Volume` を叩く。
     @Published public private(set) var volume: Float = 1.0
 
+    /// 選択可能な出力デバイス一覧 (= デバイス増減で自動更新)。
+    @Published public private(set) var availableOutputDevices: [AudioOutputDevice] = []
+
+    /// 選択中の出力デバイス UID。 nil = システム既定に追従。
+    @Published public private(set) var selectedOutputDeviceUID: String?
+
     /// キュー本体。 SwiftUI 側で「Up Next」 を表示する時に参照する。
     @Published public private(set) var queue = PlaybackQueue()
 
@@ -69,6 +76,11 @@ public final class Player: NSObject, ObservableObject {
     private let audioPlayer = AudioPlayer()
     private var timerCancellable: AnyCancellable?
 
+    /// 出力デバイス選択の永続化キー。
+    private static let outputDeviceUIDKey = "selectedOutputDeviceUID"
+    /// 出力デバイスの増減監視 (= 接続 / 切断に追従)。
+    private var deviceWatcher: AudioOutputDeviceWatcher?
+
     public override init() {
         super.init()
         audioPlayer.delegate = self
@@ -77,6 +89,13 @@ public final class Player: NSObject, ObservableObject {
         // 進捗 timer は init で起動する (= view 描画依存を避ける。 transport bar の onAppear/onDisappear 経由だと
         // view が一瞬でも tree から外れると stop されて時間表示が止まるため)。
         startProgressUpdates()
+
+        // 出力デバイス: 永続化された選択を復元し、 一覧を列挙、 増減を監視する。
+        selectedOutputDeviceUID = UserDefaults.standard.string(forKey: Self.outputDeviceUIDKey)
+        refreshOutputDevices()
+        deviceWatcher = AudioOutputDeviceWatcher { [weak self] in
+            Task { @MainActor in self?.handleOutputDevicesChanged() }
+        }
     }
 
     deinit {
@@ -234,6 +253,44 @@ public final class Player: NSObject, ObservableObject {
         progress.totalTime = 0
     }
 
+    // MARK: - 出力デバイス
+
+    /// 出力デバイス一覧を再列挙する。
+    public func refreshOutputDevices() {
+        availableOutputDevices = AudioOutputDevices.available()
+    }
+
+    /// 出力デバイスを選択する。 `uid` が nil ならシステム既定に追従。 選択は永続化する。
+    public func selectOutputDevice(uid: String?) {
+        selectedOutputDeviceUID = uid
+        if let uid {
+            UserDefaults.standard.set(uid, forKey: Self.outputDeviceUIDKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: Self.outputDeviceUIDKey)
+        }
+        applyOutputDevice()
+    }
+
+    /// デバイス増減時: 一覧を更新し、 選択中デバイスを再解決して適用し直す (= DAC 再接続に追従)。
+    private func handleOutputDevicesChanged() {
+        refreshOutputDevices()
+        applyOutputDevice()
+    }
+
+    /// 選択中 (= UID) のデバイスを現在の AudioObjectID へ解決して engine に適用する。
+    /// 選択デバイスが見つからない / 未選択ならシステム既定にフォールバック。
+    /// engine 未起動時は失敗し得るが、 次の再生開始時 (`startCurrent`) に再適用される。
+    private func applyOutputDevice() {
+        let targetID: AudioObjectID?
+        if let uid = selectedOutputDeviceUID {
+            targetID = AudioOutputDevices.deviceID(forUID: uid) ?? AudioOutputDevices.defaultOutputDeviceID()
+        } else {
+            targetID = AudioOutputDevices.defaultOutputDeviceID()
+        }
+        guard let targetID else { return }
+        try? audioPlayer.setOutputDeviceID(targetID)
+    }
+
     // MARK: - 進捗 polling
 
     /// 進捗 timer を開始する。 1 秒ごとに `currentTime` / `totalTime` を SFB から pull する。
@@ -277,6 +334,7 @@ public final class Player: NSObject, ObservableObject {
             // immediate=true: 即時再生 (= 再生中ならキャンセル + 新規 play)
             // immediate=false: enqueue だけ (= ギャップレス継続用)
             if immediate {
+                applyOutputDevice()
                 try audioPlayer.play(item.url)
             } else {
                 try audioPlayer.enqueue(item.url, immediate: false)

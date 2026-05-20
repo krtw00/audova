@@ -28,6 +28,8 @@ public struct TransportBarView: View {
             ProgressScrubber(progress: player.progress) { player.seek(to: $0) }
                 .frame(maxWidth: .infinity)
 
+            outputDeviceMenu
+
             volumeBlock
                 .frame(width: 140)
         }
@@ -114,6 +116,33 @@ public struct TransportBarView: View {
         case .all: return "リピート: 全曲"
         case .one: return "リピート: 1曲"
         }
+    }
+
+    /// 出力デバイス選択メニュー (= スピーカーアイコン → 「システム既定」 + デバイス一覧)。
+    private var outputDeviceMenu: some View {
+        Menu {
+            Picker("出力デバイス", selection: outputDeviceSelection) {
+                Text("システム既定").tag("")
+                ForEach(player.availableOutputDevices) { device in
+                    Text(device.name).tag(device.uid)
+                }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            Image(systemName: "hifispeaker")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("出力デバイス")
+    }
+
+    /// 出力デバイス Picker の選択 binding。 空文字 = システム既定 (= nil)。
+    private var outputDeviceSelection: Binding<String> {
+        Binding(
+            get: { player.selectedOutputDeviceUID ?? "" },
+            set: { player.selectOutputDevice(uid: $0.isEmpty ? nil : $0) }
+        )
     }
 
     private var volumeBlock: some View {
