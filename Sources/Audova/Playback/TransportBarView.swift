@@ -21,6 +21,8 @@ public struct TransportBarView: View {
 
     public var body: some View {
         HStack(spacing: 12) {
+            ArtworkImage(path: player.currentItem?.artworkPath, size: 40)
+
             metadataBlock
                 .frame(minWidth: 180, idealWidth: 240, maxWidth: 280, alignment: .leading)
 

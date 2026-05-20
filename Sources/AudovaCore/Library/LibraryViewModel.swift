@@ -42,6 +42,12 @@ public final class LibraryViewModel {
         }
     }
 
+    /// 現在選択中のアルバムのレコード (= 詳細ヘッダー表示用)。 未選択 / 該当なしなら nil。
+    public var selectedAlbum: Album? {
+        guard let id = selectedAlbumId else { return nil }
+        return albums.first { $0.id == id }
+    }
+
     /// 検索クエリ (= 1 文字入力ごとに `performSearch` を呼ぶ想定)。
     public var searchQuery: String = "" {
         didSet {
@@ -190,6 +196,8 @@ public final class LibraryViewModel {
                     state: .completed(tracks: scanResult.tracks.count, warnings: scanResult.warnings.count)
                 )
                 reloadAll()
+                // アートワークは抽出に時間がかかるので背景で行い、 完了後に再読込してカバーを反映する。
+                backfillArtwork(store: store)
             } catch {
                 scanProgress = ScanProgress(
                     folder: folder,
@@ -213,6 +221,18 @@ public final class LibraryViewModel {
     /// スキャン進捗 sheet を閉じる時に呼ぶ。
     public func dismissScanProgress() {
         scanProgress = nil
+    }
+
+    /// cover 未設定のアルバムのアートを背景 (= detached) で抽出・保存し、 反映があれば再読込する。
+    /// `LibraryStore` は `Sendable` な値型なので detached task へ安全に渡せる。
+    private func backfillArtwork(store: LibraryStore) {
+        Task.detached(priority: .utility) { [weak self] in
+            guard let artworkStore = try? ArtworkStore.applicationSupport() else { return }
+            let updated = (try? ArtworkBackfiller(store: store, artworkStore: artworkStore).run()) ?? 0
+            if updated > 0 {
+                await self?.reloadAll()
+            }
+        }
     }
 
     // MARK: - 連携 hook (= AUD-6 再生エンジンへの橋渡し)

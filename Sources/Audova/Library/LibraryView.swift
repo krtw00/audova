@@ -128,7 +128,7 @@ private struct AlbumListPane: View {
             AlbumRow(title: model.selectedArtistId == nil ? "全アルバム" : "全曲 (アーティスト)", year: nil, isAll: true)
                 .tag(Optional<Int64>.none)
             ForEach(model.albums, id: \.id) { album in
-                AlbumRow(title: album.title, year: album.year, isAll: false)
+                AlbumRow(title: album.title, year: album.year, isAll: false, coverArtPath: album.coverArtPath)
                     .tag(Optional<Int64>(album.id ?? 0))
             }
         }
@@ -153,11 +153,17 @@ private struct AlbumRow: View {
     let title: String
     let year: Int?
     let isAll: Bool
+    var coverArtPath: String? = nil
 
     var body: some View {
         HStack {
-            Image(systemName: isAll ? "square.grid.2x2" : "opticaldisc")
-                .foregroundStyle(isAll ? .secondary : .primary)
+            if isAll {
+                Image(systemName: "square.grid.2x2")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
+            } else {
+                ArtworkImage(path: coverArtPath, size: 28)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .lineLimit(1)
@@ -251,6 +257,15 @@ private struct TrackListPane: View {
         .onCopyCommand {
             // Cmd+C で選択行のファイルパスを 1 行ずつ pasteboard へ。
             tracksToPathStringItems(for: selectedTrackIds)
+        }
+        // アルバム選択中は曲一覧の上に大アート + タイトル/年のヘッダーを差し込む。
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let album = model.selectedAlbum {
+                VStack(spacing: 0) {
+                    AlbumDetailHeader(album: album, trackCount: model.tracks.count)
+                    Divider()
+                }
+            }
         }
     }
 
@@ -346,6 +361,36 @@ private struct TrackListPane: View {
             .joined(separator: "\n")
         guard !paths.isEmpty else { return [] }
         return [NSItemProvider(object: paths as NSString)]
+    }
+}
+
+// MARK: - アルバム詳細ヘッダー
+
+/// アルバム選択時に曲一覧の上へ出す、 大アート + タイトル / 年 / 曲数のヘッダー。
+private struct AlbumDetailHeader: View {
+    let album: Album
+    let trackCount: Int
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ArtworkImage(path: album.coverArtPath, size: 72, cornerRadius: 6)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(album.title)
+                    .font(.title3).bold()
+                    .lineLimit(2)
+                if let year = album.year {
+                    Text(String(year))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Text("\(trackCount) 曲")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(12)
+        .background(.background)
     }
 }
 

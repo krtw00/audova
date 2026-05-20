@@ -31,30 +31,16 @@ struct AudovaApp: App {
                 .focusedSceneObject(player)
                 .onAppear {
                     // ライブラリ→再生エンジンの結線。 closure で疎結合化されているので、 ここで bind する。
+                    let store = libraryModel.store
                     let actions = LibraryTrackActions(
                         playNow: { track in
-                            player.playNow(
-                                QueueItem(
-                                    url: URL(fileURLWithPath: track.path),
-                                    title: track.title
-                                )
-                            )
+                            player.playNow(Self.makeQueueItem(from: track, store: store))
                         },
                         enqueue: { track in
-                            player.enqueue(
-                                QueueItem(
-                                    url: URL(fileURLWithPath: track.path),
-                                    title: track.title
-                                )
-                            )
+                            player.enqueue(Self.makeQueueItem(from: track, store: store))
                         },
                         playPlaylist: { tracks, startIndex in
-                            let items = tracks.map { track in
-                                QueueItem(
-                                    url: URL(fileURLWithPath: track.path),
-                                    title: track.title
-                                )
-                            }
+                            let items = tracks.map { Self.makeQueueItem(from: $0, store: store) }
                             player.replaceQueue(items, startAt: startIndex)
                         }
                     )
@@ -94,6 +80,16 @@ struct AudovaApp: App {
             let db = try! LibraryDatabase.open(.inMemory)
             return LibraryStore(database: db)
         }
+    }
+
+    /// `TrackRow` → `QueueItem`。 アルバムアートのパスを store から解決して載せる (= 現在曲アート表示用)。
+    private static func makeQueueItem(from track: TrackRow, store: LibraryStore) -> QueueItem {
+        let artworkPath = (try? store.coverArtPath(forAlbumId: track.albumId)) ?? nil
+        return QueueItem(
+            url: URL(fileURLWithPath: track.path),
+            title: track.title,
+            artworkPath: artworkPath
+        )
     }
 }
 
