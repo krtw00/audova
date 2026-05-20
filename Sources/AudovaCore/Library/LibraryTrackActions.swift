@@ -10,18 +10,23 @@ public struct LibraryTrackActions: Sendable {
     public var playNow: @MainActor @Sendable (TrackRow) -> Void
     /// 再生キュー末尾に追加 (= context menu「再生キューに追加」)。
     public var enqueue: @MainActor @Sendable (TrackRow) -> Void
+    /// プレイリストを先頭 index から再生 (= PlaylistDetailView のダブルクリック用)。
+    public var playPlaylist: @MainActor @Sendable ([TrackRow], Int) -> Void
 
     public init(
         playNow: @escaping @MainActor @Sendable (TrackRow) -> Void,
-        enqueue: @escaping @MainActor @Sendable (TrackRow) -> Void
+        enqueue: @escaping @MainActor @Sendable (TrackRow) -> Void,
+        playPlaylist: @escaping @MainActor @Sendable ([TrackRow], Int) -> Void = { _, _ in }
     ) {
         self.playNow = playNow
         self.enqueue = enqueue
+        self.playPlaylist = playPlaylist
     }
 
     /// 何もしない default。 AUD-6 未統合時のフォールバック。
     public static let noop = LibraryTrackActions(
         playNow: { _ in },
-        enqueue: { _ in }
+        enqueue: { _ in },
+        playPlaylist: { _, _ in }
     )
 }

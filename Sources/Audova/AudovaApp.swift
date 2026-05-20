@@ -10,18 +10,21 @@ struct AudovaApp: App {
     /// DB open はこの init で 1 回だけ行う。
     @State private var libraryModel: LibraryViewModel = AudovaApp.makeLibraryViewModel()
 
+    /// プレイリスト画面のステート。 `libraryModel` と同じ `LibraryStore` を共有する。
+    @State private var playlistModel: PlaylistViewModel = AudovaApp.makePlaylistViewModel()
+
     /// 再生エンジン。 シーン全体で共有 (= TransportBarView から `@EnvironmentObject` で参照)。
     @StateObject private var player = Player()
 
     var body: some Scene {
         WindowGroup("Audova") {
-            ContentView(libraryModel: libraryModel)
+            ContentView(libraryModel: libraryModel, playlistModel: playlistModel)
                 .environmentObject(player)
                 // scene focus 経由で PlaybackCommands に Player を渡す (= keyboard shortcut の event 伝播のため)。
                 .focusedSceneObject(player)
                 .onAppear {
                     // ライブラリ→再生エンジンの結線。 closure で疎結合化されているので、 ここで bind する。
-                    libraryModel.trackActions = LibraryTrackActions(
+                    let actions = LibraryTrackActions(
                         playNow: { track in
                             player.playNow(
                                 QueueItem(
@@ -37,8 +40,19 @@ struct AudovaApp: App {
                                     title: track.title
                                 )
                             )
+                        },
+                        playPlaylist: { tracks, startIndex in
+                            let items = tracks.map { track in
+                                QueueItem(
+                                    url: URL(fileURLWithPath: track.path),
+                                    title: track.title
+                                )
+                            }
+                            player.replaceQueue(items, startAt: startIndex)
                         }
                     )
+                    libraryModel.trackActions = actions
+                    playlistModel.trackActions = actions
                 }
         }
         .windowResizability(.contentSize)
@@ -74,6 +88,20 @@ struct AudovaApp: App {
             store = LibraryStore(database: db)
         }
         return LibraryViewModel(store: store)
+    }
+
+    /// プレイリスト ViewModel factory。 `libraryModel` と同じ DB を共有するため、 同じ path を開く。
+    /// DB open は `LibraryStore` 内の `DatabasePool` で接続プールされているので 2 度目の open は安全。
+    private static func makePlaylistViewModel() -> PlaylistViewModel {
+        let store: LibraryStore
+        do {
+            let db = try LibraryDatabase.open(.applicationSupport)
+            store = LibraryStore(database: db)
+        } catch {
+            let db = try! LibraryDatabase.open(.inMemory)
+            store = LibraryStore(database: db)
+        }
+        return PlaylistViewModel(store: store)
     }
 }
 

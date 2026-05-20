@@ -5,9 +5,10 @@ import AudovaCore
 
 /// ライブラリ画面のルート。 上に検索バー、 下に 3 ペイン (= アーティスト / アルバム / 曲)。
 ///
-/// AUD-5 単独ではこの view が `ContentView` の上半分を占有し、 下半分は AUD-6 の transport bar 用 placeholder。
+/// NavigationSplitView の detail として再利用される。 サイドバーは `ContentView` 側が持つ。
 struct LibraryView: View {
     @Bindable var model: LibraryViewModel
+    var playlistModel: PlaylistViewModel? = nil
 
     /// スキャンするフォルダを選ぶ NSOpenPanel を表示中かどうか (= 多重起動防止)。
     @State private var isShowingFolderPicker = false
@@ -21,9 +22,9 @@ struct LibraryView: View {
             Divider()
 
             if model.isSearching {
-                SearchResultsView(hits: model.searchHits, model: model)
+                SearchResultsView(hits: model.searchHits, model: model, playlistModel: playlistModel)
             } else {
-                ThreePaneLibraryView(model: model)
+                ThreePaneLibraryView(model: model, playlistModel: playlistModel)
             }
         }
         .frame(minWidth: 720, minHeight: 360)
@@ -47,6 +48,7 @@ struct LibraryView: View {
 
 private struct ThreePaneLibraryView: View {
     @Bindable var model: LibraryViewModel
+    var playlistModel: PlaylistViewModel?
 
     var body: some View {
         HSplitView {
@@ -54,7 +56,7 @@ private struct ThreePaneLibraryView: View {
                 .frame(minWidth: 160, idealWidth: 220, maxWidth: 320)
             AlbumListPane(model: model)
                 .frame(minWidth: 180, idealWidth: 260, maxWidth: 400)
-            TrackListPane(model: model)
+            TrackListPane(model: model, playlistModel: playlistModel)
                 .frame(minWidth: 320)
         }
     }
@@ -172,6 +174,7 @@ private struct AlbumRow: View {
 
 private struct TrackListPane: View {
     @Bindable var model: LibraryViewModel
+    var playlistModel: PlaylistViewModel?
     /// `TrackRow` の `Identifiable.ID` は `Int64?` (= DB rowid)。 SwiftUI が要求する Set 型に合わせる。
     /// nil 値は永続化前のレコードだけで、 ライブラリビューには出ないので実害なし。
     @State private var selectedTrackIds: Set<TrackRow.ID> = []
@@ -277,6 +280,23 @@ private struct TrackListPane: View {
             if selected.count == 1, let t = selected.first {
                 Button("今すぐ再生") { model.playNow(t) }
             }
+            // プレイリストに追加サブメニュー
+            if let pm = playlistModel, !pm.playlists.isEmpty {
+                Divider()
+                Menu("プレイリストに追加") {
+                    ForEach(pm.playlists, id: \.id) { playlist in
+                        Button(playlist.name) {
+                            let trackIds = selected.compactMap(\.id)
+                            guard !trackIds.isEmpty, let pid = playlist.id else { return }
+                            do {
+                                try pm.addTracks(trackIds, toPlaylistId: pid)
+                            } catch {
+                                pm.lastError = "追加に失敗: \(error.localizedDescription)"
+                            }
+                        }
+                    }
+                }
+            }
             Divider()
             Button("Finder で表示") {
                 let urls = selected.map { URL(fileURLWithPath: $0.path) }
@@ -332,6 +352,7 @@ private struct LibrarySearchBar: View {
 private struct SearchResultsView: View {
     let hits: [TrackSearchHit]
     @Bindable var model: LibraryViewModel
+    var playlistModel: PlaylistViewModel?
     /// `TrackSearchHit` の id は `track.path` (= `String`、 UNIQUE)。
     @State private var selectedIds: Set<String> = []
 
@@ -373,6 +394,22 @@ private struct SearchResultsView: View {
                     }
                     if selected.count == 1, let t = selected.first {
                         Button("今すぐ再生") { model.playNow(t) }
+                    }
+                    if let pm = playlistModel, !pm.playlists.isEmpty {
+                        Divider()
+                        Menu("プレイリストに追加") {
+                            ForEach(pm.playlists, id: \.id) { playlist in
+                                Button(playlist.name) {
+                                    let trackIds = selected.compactMap(\.id)
+                                    guard !trackIds.isEmpty, let pid = playlist.id else { return }
+                                    do {
+                                        try pm.addTracks(trackIds, toPlaylistId: pid)
+                                    } catch {
+                                        pm.lastError = "追加に失敗: \(error.localizedDescription)"
+                                    }
+                                }
+                            }
+                        }
                     }
                     Divider()
                     Button("Finder で表示") {
