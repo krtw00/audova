@@ -160,9 +160,15 @@ public final class LibraryViewModel {
         let scanner = self.scanner
         let store = self.store
 
+        // 差分スキャン: scan 前に既存署名を取得して skip 判定に使う。
+        let known = (try? store.fileSignatures(under: folder)) ?? [:]
+
         let result: Result<ScanResult, Error> = await Task.detached(priority: .userInitiated) {
             do {
-                let scanResult = try await scanner.scan(folder: folder) { scanned, url in
+                let scanResult = try await scanner.scan(
+                    folder: folder,
+                    knownSignatures: known
+                ) { scanned, url in
                     Task { @MainActor [weak self] in
                         guard let self else { return }
                         self.scanProgress = ScanProgress(
@@ -181,19 +187,25 @@ public final class LibraryViewModel {
 
         switch result {
         case .success(let scanResult):
+            let total = scanResult.tracks.count + scanResult.unchangedPaths.count
             scanProgress = ScanProgress(
                 folder: folder,
-                scanned: scanResult.tracks.count,
+                scanned: total,
                 currentURL: nil,
                 state: .upserting
             )
             do {
-                _ = try store.upsert(tracks: scanResult.tracks)
+                let outcome = try store.applyScan(scanResult, folder: folder)
                 scanProgress = ScanProgress(
                     folder: folder,
-                    scanned: scanResult.tracks.count,
+                    scanned: total,
                     currentURL: nil,
-                    state: .completed(tracks: scanResult.tracks.count, warnings: scanResult.warnings.count)
+                    state: .completed(
+                        updated: outcome.updated,
+                        skipped: outcome.skipped,
+                        deleted: outcome.deleted,
+                        warnings: outcome.warnings
+                    )
                 )
                 reloadAll()
                 // アートワークは抽出に時間がかかるので背景で行い、 完了後に再読込してカバーを反映する。

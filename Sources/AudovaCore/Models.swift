@@ -92,10 +92,45 @@ public struct ScanWarning: Sendable, Hashable {
 
 public struct ScanResult: Sendable {
     public let tracks: [Track]
+    public let unchangedPaths: Set<String>
     public let warnings: [ScanWarning]
 
+    /// 今回スキャンで「見た」全パスのセット (= upsert 対象 + 未変更 skip)。
+    public var seenPaths: Set<String> {
+        Set(tracks.map(\.url.path)).union(unchangedPaths)
+    }
+
+    /// 後方互換 init (既存呼び出しに影響しない)。
     public init(tracks: [Track], warnings: [ScanWarning]) {
         self.tracks = tracks
+        self.unchangedPaths = []
+        self.warnings = warnings
+    }
+
+    public init(tracks: [Track], unchangedPaths: Set<String>, warnings: [ScanWarning]) {
+        self.tracks = tracks
+        self.unchangedPaths = unchangedPaths
+        self.warnings = warnings
+    }
+}
+
+/// 再スキャン時の未変更判定に使うファイル署名 (mtime + サイズ)。
+public struct FileSignature: Sendable, Hashable {
+    public let mtime: Double      // since 1970
+    public let fileSize: Int64
+    public init(mtime: Double, fileSize: Int64) { self.mtime = mtime; self.fileSize = fileSize }
+}
+
+/// 差分スキャンの DB 反映結果。
+public struct ScanOutcome: Sendable, Equatable {
+    public let updated: Int   // 新規 + 変更 (upsert 件数)
+    public let skipped: Int   // 未変更で skip した件数
+    public let deleted: Int   // 実体喪失で削除した件数
+    public let warnings: Int
+    public init(updated: Int, skipped: Int, deleted: Int, warnings: Int) {
+        self.updated = updated
+        self.skipped = skipped
+        self.deleted = deleted
         self.warnings = warnings
     }
 }

@@ -25,6 +25,7 @@ public actor LibraryScanner {
 
     public func scan(
         folder: URL,
+        knownSignatures: [String: FileSignature] = [:],
         onProgress: ProgressHandler? = nil
     ) throws -> ScanResult {
         try Task.checkCancellation()
@@ -54,6 +55,7 @@ public actor LibraryScanner {
 
         var tracks: [Track] = []
         var warnings: [ScanWarning] = []
+        var unchangedPaths: Set<String> = []
         var scanned = 0
 
         for case let fileURL as URL in enumerator {
@@ -85,6 +87,17 @@ public actor LibraryScanner {
                 continue
             }
 
+            // 未変更判定: mtime + fileSize が一致すればメタデータ抽出を skip。
+            let path = fileURL.path
+            if let known = knownSignatures[path],
+               known.fileSize == size,
+               abs(known.mtime - mtime.timeIntervalSince1970) < 0.001 {
+                scanned += 1
+                onProgress?(scanned, fileURL)
+                unchangedPaths.insert(path)
+                continue
+            }
+
             scanned += 1
             onProgress?(scanned, fileURL)
 
@@ -99,7 +112,7 @@ public actor LibraryScanner {
             }
         }
 
-        return ScanResult(tracks: tracks, warnings: warnings)
+        return ScanResult(tracks: tracks, unchangedPaths: unchangedPaths, warnings: warnings)
     }
 
     /// Extract metadata + properties from a single audio file via SFBAudioEngine.

@@ -7,8 +7,8 @@ public struct ScanProgress: Sendable, Equatable {
         case scanning
         /// DB upsert 中 (= 列挙は終わって書込フェーズ)。
         case upserting
-        /// 完了。 `tracks` は反映件数、 `warnings` は警告件数 (= 不正ファイル等)。
-        case completed(tracks: Int, warnings: Int)
+        /// 完了。 各件数を保持する。
+        case completed(updated: Int, skipped: Int, deleted: Int, warnings: Int)
         /// 失敗。 ユーザー表示向けメッセージ。
         case failed(message: String)
     }

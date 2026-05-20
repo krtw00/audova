@@ -113,6 +113,82 @@ final class LibraryScannerTests: XCTestCase {
         XCTAssertEqual(counter.value, 2, "progress should be called once per audio file")
     }
 
+    // MARK: - 差分スキャン (knownSignatures)
+
+    func testUnchangedFileIsSkippedWhenSignatureMatches() async throws {
+        let tempDir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        // ダミー .flac ファイルを作成。 skip は readTrack の前に判定するので内容は空で OK。
+        let fileURL = tempDir.appendingPathComponent("track.flac")
+        try Data().write(to: fileURL)
+
+        // enumerator が返す実際の canonical path を先に取得する
+        // (= macOS では /var/folders → /private/var/folders になるため)。
+        let canonicalPath = try canonicalFilePath(of: fileURL)
+
+        let resourceValues = try URL(fileURLWithPath: canonicalPath)
+            .resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
+        let size = Int64(resourceValues.fileSize ?? 0)
+        let mtime = resourceValues.contentModificationDate?.timeIntervalSince1970 ?? 0
+
+        let knownSig = FileSignature(mtime: mtime, fileSize: size)
+        let scanner = LibraryScanner()
+        let result = try await scanner.scan(
+            folder: tempDir,
+            knownSignatures: [canonicalPath: knownSig]
+        )
+
+        XCTAssertTrue(result.tracks.isEmpty, "unchanged file should not produce a track")
+        XCTAssertEqual(result.warnings.count, 0)
+        XCTAssertTrue(result.unchangedPaths.contains(canonicalPath),
+                      "unchanged path should be recorded in unchangedPaths")
+    }
+
+    func testChangedFileSizeTriggersMetadataRead() async throws {
+        let tempDir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let fileURL = tempDir.appendingPathComponent("track.flac")
+        try Data().write(to: fileURL)
+
+        let canonicalPath = try canonicalFilePath(of: fileURL)
+        let resourceValues = try URL(fileURLWithPath: canonicalPath)
+            .resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
+        let mtime = resourceValues.contentModificationDate?.timeIntervalSince1970 ?? 0
+
+        // size を実際とずらす → skip されない
+        let staleSig = FileSignature(mtime: mtime, fileSize: 99999)
+        let scanner = LibraryScanner()
+        let result = try await scanner.scan(
+            folder: tempDir,
+            knownSignatures: [canonicalPath: staleSig]
+        )
+
+        XCTAssertFalse(result.unchangedPaths.contains(canonicalPath),
+                       "file with mismatched size should not be skipped")
+    }
+
+    /// FileManager enumerator が返す canonical path を取得するヘルパー。
+    /// macOS では /var/folders → /private/var/folders のように変換される。
+    private func canonicalFilePath(of url: URL) throws -> String {
+        let resourceKeys: [URLResourceKey] = [.isRegularFileKey]
+        guard let enumerator = FileManager.default.enumerator(
+            at: url.deletingLastPathComponent(),
+            includingPropertiesForKeys: resourceKeys,
+            options: [.skipsHiddenFiles]
+        ) else {
+            throw CocoaError(.fileReadUnknown)
+        }
+        let name = url.lastPathComponent
+        for case let found as URL in enumerator {
+            if found.lastPathComponent == name {
+                return found.path
+            }
+        }
+        return url.path
+    }
+
     /// fixture 環境変数 (= `AUDOVA_TEST_LIBRARY`) で指定された実音源ディレクトリで metadata 抽出を検証する。
     /// fixture 未配置時は skip (= scripts/fetch_test_audio.py + scripts/arrange_test_library.sh で生成可)。
     func testMetadataExtraction_withFixtures() async throws {

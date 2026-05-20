@@ -31,7 +31,7 @@ public struct LibraryStore: Sendable {
         }
     }
 
-    private static func upsertOne(track: Track, now: Date, db: Database) throws {
+    static func upsertOne(track: Track, now: Date, db: Database) throws {
         let artistId = try ensureArtistId(name: track.artist, db: db)
         let albumArtistId = try ensureArtistId(name: track.albumArtist ?? track.artist, db: db)
         let albumId = try ensureAlbumId(

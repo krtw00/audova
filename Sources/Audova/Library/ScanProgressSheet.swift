@@ -43,9 +43,9 @@ struct ScanProgressSheet: View {
                     .progressViewStyle(.linear)
                 Text("DB に反映中... (\(progress.scanned) 件)")
                     .font(.caption.monospacedDigit())
-            case .completed(let tracks, let warnings):
+            case .completed(let updated, let skipped, let deleted, let warnings):
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("反映: \(tracks) 件")
+                    Text("更新: \(updated) 件 / 変更なし: \(skipped) 件 / 削除: \(deleted) 件")
                     if warnings > 0 {
                         Text("警告: \(warnings) 件 (= メタデータ読取失敗 / 属性不明)")
                             .foregroundStyle(.orange)
