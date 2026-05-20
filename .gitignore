@@ -17,3 +17,5 @@ docs/sessions/
 *.app
 *.dmg
 *.pkg
+*.zip
+dist/
