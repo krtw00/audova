@@ -23,7 +23,18 @@ Audova は **macOS 専用の OSS ライブラリ管理プレイヤー** とし�
 
 ## ステータス
 
-**Phase 1 (= MVP) 開発中** — ライブラリスキャン + メタデータ + 再生 + 静的プレイリスト。 詳細は [`docs/ROADMAP.md`](docs/ROADMAP.md)。
+**v0.2.0 リリース済み** — Phase 1 (MVP) 完了 + Phase 2 一部 (シャッフル / リピート, メディアキー・コントロールセンター連携, 差分スキャン, アルバム単位再生)。 詳細は [`docs/ROADMAP.md`](docs/ROADMAP.md)。
+
+## ダウンロード / インストール
+
+最新版は **[Releases](https://github.com/krtw00/audova/releases/latest)** から入手できます (Apple Silicon / macOS 14 以降)。
+
+1. `Audova-vX.Y.Z-macos-arm64.zip` をダウンロードして展開し、 `Audova.app` を `/Applications` に移動。
+2. **未署名 / notarize 未対応** のため、 初回は macOS Gatekeeper にブロックされます。 次のいずれかで開いてください:
+   - `Audova.app` を **右クリック → 開く → 開く**、 または
+   - `xattr -dr com.apple.quarantine /Applications/Audova.app`
+
+ソースからビルドする場合は下記「ビルド / 実行」を参照。
 
 ## ビルド / 実行
 
