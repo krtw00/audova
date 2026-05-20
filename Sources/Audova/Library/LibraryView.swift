@@ -130,6 +130,12 @@ private struct AlbumListPane: View {
             ForEach(model.albums, id: \.id) { album in
                 AlbumRow(title: album.title, year: album.year, isAll: false, coverArtPath: album.coverArtPath)
                     .tag(Optional<Int64>(album.id ?? 0))
+                    .contextMenu {
+                        if let id = album.id {
+                            Button("アルバムを再生") { model.playAlbum(id) }
+                            Button("キューに追加") { model.enqueueAlbum(id) }
+                        }
+                    }
             }
         }
         .listStyle(.inset)
@@ -250,9 +256,10 @@ private struct TrackListPane: View {
         .contextMenu(forSelectionType: TrackRow.ID.self) { ids in
             trackContextMenu(for: ids)
         } primaryAction: { ids in
-            // ダブルクリック / Enter で即時再生。
-            guard let first = ids.first.flatMap({ $0 }), let track = trackById(first) else { return }
-            model.playNow(track)
+            // ダブルクリック / Enter で、 現在のリストをその曲から末尾まで連続再生する。
+            guard let first = ids.first.flatMap({ $0 }),
+                  let index = model.tracks.firstIndex(where: { $0.id == first }) else { return }
+            model.play(model.tracks, startAt: index)
         }
         .onCopyCommand {
             // Cmd+C で選択行のファイルパスを 1 行ずつ pasteboard へ。
@@ -262,7 +269,12 @@ private struct TrackListPane: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             if let album = model.selectedAlbum {
                 VStack(spacing: 0) {
-                    AlbumDetailHeader(album: album, trackCount: model.tracks.count)
+                    AlbumDetailHeader(
+                        album: album,
+                        trackCount: model.tracks.count,
+                        onPlay: { model.play(model.tracks, startAt: 0) },
+                        onEnqueue: { model.enqueueAll(model.tracks) }
+                    )
                     Divider()
                 }
             }
@@ -318,8 +330,9 @@ private struct TrackListPane: View {
             Button("再生キューに追加") {
                 for t in selected { model.enqueue(t) }
             }
-            if selected.count == 1, let t = selected.first {
-                Button("今すぐ再生") { model.playNow(t) }
+            if selected.count == 1, let t = selected.first,
+               let index = model.tracks.firstIndex(where: { $0.id == t.id }) {
+                Button("今すぐ再生") { model.play(model.tracks, startAt: index) }
             }
             // プレイリストに追加サブメニュー
             if let pm = playlistModel, !pm.playlists.isEmpty {
@@ -370,6 +383,8 @@ private struct TrackListPane: View {
 private struct AlbumDetailHeader: View {
     let album: Album
     let trackCount: Int
+    let onPlay: () -> Void
+    let onEnqueue: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -388,6 +403,18 @@ private struct AlbumDetailHeader: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            HStack(spacing: 8) {
+                Button(action: onPlay) {
+                    Label("再生", systemImage: "play.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                Button(action: onEnqueue) {
+                    Label("キューに追加", systemImage: "plus")
+                }
+                .buttonStyle(.bordered)
+            }
+            .controlSize(.small)
+            .disabled(trackCount == 0)
         }
         .padding(12)
         .background(.background)

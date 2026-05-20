@@ -246,4 +246,33 @@ public final class LibraryViewModel {
     public func enqueue(_ track: TrackRow) {
         trackActions.enqueue(track)
     }
+
+    /// 指定リストを `index` の曲から連続再生する (= キューをリスト全体に置換)。
+    public func play(_ tracks: [TrackRow], startAt index: Int) {
+        guard !tracks.isEmpty else { return }
+        trackActions.playPlaylist(tracks, max(0, min(index, tracks.count - 1)))
+    }
+
+    /// 複数トラックを順にキュー末尾へ追加する。
+    public func enqueueAll(_ tracks: [TrackRow]) {
+        for track in tracks { trackActions.enqueue(track) }
+    }
+
+    /// アルバム全曲を先頭から連続再生する。
+    public func playAlbum(_ albumId: Int64) {
+        do {
+            play(try store.tracks(byAlbumId: albumId), startAt: 0)
+        } catch {
+            lastError = "アルバム再生に失敗: \(error.localizedDescription)"
+        }
+    }
+
+    /// アルバム全曲をキュー末尾へ追加する。
+    public func enqueueAlbum(_ albumId: Int64) {
+        do {
+            enqueueAll(try store.tracks(byAlbumId: albumId))
+        } catch {
+            lastError = "キュー追加に失敗: \(error.localizedDescription)"
+        }
+    }
 }
