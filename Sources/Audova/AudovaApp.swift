@@ -110,18 +110,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.activate(ignoringOtherApps: true)
 
-        // SwiftUI Commands では menu category 自体 (= File / Format / Help) を消せないため、
-        // AppKit 経由で mainMenu を直接整形する。 SwiftUI が後から scene rebuild で復活させるので、
-        // 複数 delay で cleanup を試みる + applicationDidBecomeActive でも追従。
-        for delay in [0.0, 0.1, 0.5, 1.5] {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                Self.adjustMainMenu()
-            }
+        // SwiftUI Commands では menu category 自体 (= File / Format / Help) を消せず、
+        // SwiftUI は rebuild のたびに mainMenu へ復活させてくる。 mainMenu への item 追加を監視し、
+        // 追加直後 (= 次の runloop) に整形することで、 タイトルがバーに残らないようにする。
+        if let mainMenu = NSApp.mainMenu {
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(mainMenuItemsDidChange),
+                name: NSMenu.didAddItemNotification, object: mainMenu)
         }
+        Self.adjustMainMenu()
+    }
+
+    /// SwiftUI が mainMenu に item を追加した直後に呼ばれる。 rebuild が一段落してから整形する
+    /// (= SwiftUI の追加処理 iteration 中の mutation を避けるため async)。
+    @objc private func mainMenuItemsDidChange(_ note: Notification) {
+        DispatchQueue.main.async { Self.adjustMainMenu() }
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
-        // window 切替 / app アクティブ化のたびに cleanup (= SwiftUI の menu rebuild に追従)
+        // app アクティブ化のたびにも追従 (= 監視を取りこぼした場合の保険)
         Self.adjustMainMenu()
     }
 
@@ -129,23 +136,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         true
     }
 
-    /// menu bar の現状を stderr に出して、 不要な menu (= File / Help) を削除する。
+    /// 常に不要な default menu (= File / Format / Help)。 SwiftUI が rebuild で何度でも作るので除去対象。
+    private static let unwantedMenuTitles: Set<String> =
+        ["File", "ファイル", "Help", "ヘルプ", "Format", "フォーマット", "書式"]
+
+    /// mainMenu から不要 menu を除去する。
+    /// (1) `unwantedMenuTitles` に一致するもの、 (2) 中身が空 or separator だけの menu (= 表示) を消す。
     private static func adjustMainMenu() {
-        guard let mainMenu = NSApp.mainMenu else {
-            fputs("[Audova menu] NSApp.mainMenu is nil\n", stderr)
-            return
-        }
-
-        let before = mainMenu.items.map { "\($0.submenu?.title ?? $0.title)" }
-        fputs("[Audova menu] before: \(before)\n", stderr)
-
-        let removeTitles: Set<String> = ["File", "ファイル", "Help", "ヘルプ", "Format", "フォーマット", "書式"]
+        guard let mainMenu = NSApp.mainMenu else { return }
         let toRemove = mainMenu.items.filter { item in
-            removeTitles.contains(item.submenu?.title ?? "") || removeTitles.contains(item.title)
+            let title = item.submenu?.title ?? item.title
+            if unwantedMenuTitles.contains(title) { return true }
+            // submenu が無い / 空 / separator のみ = ユーザーが操作できる項目が無い → 除去
+            if let sub = item.submenu, sub.items.allSatisfy(\.isSeparatorItem) { return true }
+            return false
         }
         toRemove.forEach { mainMenu.removeItem($0) }
-
-        let after = mainMenu.items.map { "\($0.submenu?.title ?? $0.title)" }
-        fputs("[Audova menu] after: \(after)\n", stderr)
     }
 }
