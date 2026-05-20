@@ -31,8 +31,9 @@ Audova は **無料で使える高品質な macOS 専用 OSS ライブラリ管�
 
 1. `Audova-vX.Y.Z-macos-arm64.zip` をダウンロードして展開し、 `Audova.app` を `/Applications` に移動。
 2. **未署名 / notarize 未対応** のため、 初回は macOS Gatekeeper にブロックされます。 次のいずれかで開いてください:
-   - `Audova.app` を **右クリック → 開く → 開く**、 または
-   - `xattr -dr com.apple.quarantine /Applications/Audova.app`
+   - **ターミナル (全 macOS 共通・確実)**: `xattr -dr com.apple.quarantine /Applications/Audova.app` を実行してから起動
+   - **macOS 14 (Sonoma)**: `Audova.app` を **右クリック → 開く → 開く**
+   - **macOS 15 (Sequoia) 以降**: 一度起動を試みた後、 **システム設定 → プライバシーとセキュリティ** の下部に出る「"Audova" の使用がブロックされました」の **「このまま開く」** をクリック (macOS 15 で従来の「右クリック → 開く」は塞がれました)
 
 ソースからビルドする場合は下記「ビルド / 実行」を参照。
 
