@@ -67,16 +67,24 @@ final class NowPlayingController {
     // MARK: - Player 監視 → Now Playing 更新
 
     private func observePlayer() {
+        // @Published の projected publisher (`$`) は willSet 時点で発火するため、 sink 内で
+        // `player.xxx` を読むと commit 前の「1 つ前の値」になる (= Combine の既知の挙動)。
+        // `.receive(on:)` で次の runloop へずらし、 commit 後の最新値を読むようにする
+        // (= 状態が 1 操作分遅れてコントロールセンターが誤った再生/一時停止を表示し、
+        //   一時停止から再開できなくなる問題の防止)。
         // 曲が変わったら全情報を更新。
         player.$currentItem
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.refreshNowPlaying() }
             .store(in: &cancellables)
         // 再生 / 一時停止で rate + 経過時間を更新。
         player.$playbackState
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.refreshNowPlaying() }
             .store(in: &cancellables)
         // 通常進行 (0.25 秒刻み) では更新せず、 シーク等の大きなジャンプ時だけ経過時間を同期。
         player.progress.$currentTime
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] time in
                 guard let self else { return }
                 if abs(time - self.lastTime) > 1.5 { self.refreshNowPlaying() }
