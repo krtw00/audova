@@ -19,3 +19,8 @@ docs/sessions/
 *.pkg
 *.zip
 dist/
+
+# Secrets (local only) — Developer ID 署名鍵など
+secrets/
+*.key
+*.csr
