@@ -1,9 +1,9 @@
 # audova
 
-## 1. Plane (Issue 管理)
+## 1. Issue / タスク管理
 
-- identifier: `AUD` — https://plane.codenica.dev/codenica/projects/9e973fd5-4a6e-48bd-8e50-4580176c3cb8/issues/
-- 共通運用 (Issue 起票 / commit msg / 状況確認) は global `~/.claude/CLAUDE.md` 「プロジェクト管理 (Plane)」 参照
+- タスク/チケット管理はしない。 詳細は global `~/.claude/CLAUDE.md` 「task 粒度 / Issue 起票」 参照
+- 忘れたくない bug だけ GitHub/Forgejo に ad-hoc 起票 (規律ではなく備忘)
 
 ## 2. 技術スタック
 
@@ -48,4 +48,4 @@ autopilot 不適合プロジェクト。 理由:
 
 ## 6. HANDOFF.md
 
-構造 / max 行数 / 「中断 context 復元用」 専用ルールは global `~/.claude/CLAUDE.md` 「プロジェクト管理 (Plane) と セッション引き継ぎ (HANDOFF.md) の役割分担」 → 「HANDOFF.md (短期 / 作業単位の記憶)」 参照。 配置は `docs/sessions/HANDOFF.md` (= `.gitignore` で除外、 local only)。
+構造 / max 行数 / 「中断 context 復元用」 専用ルールは global `~/.claude/CLAUDE.md` 「見通しダッシュボード (現況俯瞰) と セッション引き継ぎ (HANDOFF.md) の役割分担」 → 「HANDOFF.md (短期 / 作業単位の記憶)」 参照。 配置は `docs/sessions/HANDOFF.md` (= `.gitignore` で除外、 local only)。
